@@ -107,6 +107,8 @@ npm run dev
 | `AI_MODEL` | `gpt-5-mini` | 默认模型，可按供应商修改 |
 | `VITE_API_BASE_URL` | `/api/v1` | 浏览器请求前缀 |
 
+后端环境通过 Spring Profile 区分：`dev` 用于本地调试，`test` 使用内存数据库隔离测试，`prod` 强制从环境变量读取数据库凭据。生产环境启动时应设置 `SPRING_PROFILES_ACTIVE=prod`。
+
 ## 接口与开发约定
 
 - 人类可读约束见 [`docs/api-contract.md`](docs/api-contract.md)。
