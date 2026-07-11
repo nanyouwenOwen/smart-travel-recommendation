@@ -2,7 +2,46 @@
 
 审核日期：2026-07-12  
 审核范围：`docs/plans/round-05-realtime-data.md`、`TODO.md` 第 6 节及当前工作区实现  
-结论：**FAIL**
+结论：**PASS**
+
+## GitHub Actions 证据核验
+
+[GitHub Actions run 29162926553](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29162926553) 已于 commit `7133c637` completed/success；`backend`、`openapi`、`frontend`、`e2e` 全部成功，e2e job 的 MySQL 8.4 容器初始化、Playwright 安装、`npm run test:e2e` 和容器清理均成功。
+
+通过 `git show 7133c637:...` 复核确认：天气窗口裁剪、`DEMO_STUB` 诚实来源、地点 stale 映射、64 KiB Base64 JSON prompt 边界及单 provider warning 均已包含在该 commit；当前唯一工作区变更为本审核文档。因此该 run 完整验证了最终实现，可确认 Flyway V6 在 MySQL 8.4 执行成功且真实栈 Playwright 通过。
+
+审核过程中曾误判上述关键修复尚未进入 `7133c637`，现已根据 Git 对象内容与 `git status --porcelain` 纠正。Round 05 最终结论为 **PASS**。
+
+## 2026-07-12 第二次复审（最终结论）
+
+Round 05 的低流量 MVP 实现 **PASS**。上次列出的 6 个代码阻断均已修复：
+
+- 地点时区不再对所有非中国地点返回 UTC；常见国家使用 IANA zone，其余使用经度推导的合法 `Etc/GMT±N` 固定偏移。
+- 天气查询裁剪到 `today..today+16`，完全超范围返回 `UNAVAILABLE`，部分覆盖明确返回 `unavailableDates` 和 warning。
+- Stub 来源统一为 `DEMO_STUB / 演示数据（非实时）`，OpenAPI、后端集成断言和前端徽标一致；Stub AI 只说“带来源的数据”，不再宣称实时第三方数据。
+- 地点 stale-if-error 会把每项来源映射为 `STALE`。
+- AI 实时上下文改为最大 64 KiB 的 Base64 JSON 数据块，第三方文本不能闭合外层 `<realtime-data>` 边界；超限时明确不用实时数据且 sources 为空。
+- weather 或 places 任一失败都会生成并渲染全局 warning，不再静默隐藏。
+- 普通 AI 消息集成测试已直接证明来源持久化及带来源 Stub 回答；现有 SSE 客户端仍以 done 后 GET 回源为最终真相，E2E 已覆盖刷新后来源。
+
+### 本次独立门禁
+
+- `cd backend && mvn -q verify`：退出码 0。
+- `cd frontend && npm run type-check && npm run test:coverage && npm run build`：退出码 0；17 个测试文件、41 个测试通过；lines 91.66%、branches 78.82%、functions 87.32%；生产构建成功。
+- `npx --yes @redocly/cli lint docs/openapi.yaml --extends=minimal`：退出码 0，API description valid，37 条非阻断 warnings。
+- 人工核对 `DEMO_STUB` 已进入 OpenAPI provider 枚举，前端 provider 类型保持开放字符串兼容；OpenAPI 不再有重复 `messages` 属性。
+
+### MySQL 8.4 交付门禁
+
+本地 Maven 测试使用 H2 schema，因此最终以 [GitHub Actions run 29162926553](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29162926553) 的干净环境为准。该 run 在 commit `7133c637` 上以 MySQL 8.4 service 启动应用并完成 Playwright，job 全绿，门禁已满足。
+
+### 已知但不阻塞 MVP 的限制
+
+- 经度兜底的 `Etc/GMT±N` 是固定偏移，不处理 DST，也无法精确覆盖美国、澳大利亚等多时区国家；生产 live 模式应改用可靠 timezone provider/坐标时区库，或使用 Open-Meteo `timezone=auto` 并持久化其规范 IANA zone。
+- Base64 边界防止结构闭合，但模型级提示注入仍应继续通过恶意 fixture、输出事实校验和结构化 tool calling 加固。
+- per-key single-flight、provider host allowlist、条件请求、熔断、独立配额、缓存清理和前端 AbortController 仍按第一次复审列入生产增强。
+
+下方历史初审/第一次复审保留为修正轨迹，其 FAIL 结论已被本节取代。
 
 ## 2026-07-12 第一次复审（本节结论优先于下方初审明细）
 
