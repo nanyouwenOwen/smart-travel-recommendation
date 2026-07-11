@@ -15,6 +15,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.security.access.AccessDeniedException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -41,6 +42,11 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiErrorResponse> business(BusinessException exception, HttpServletRequest request) {
         return response(exception.getStatus(),
                 new ApiError(exception.getCode(), exception.getMessage()), request);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<ApiErrorResponse> accessDenied(AccessDeniedException exception, HttpServletRequest request) {
+        return response(HttpStatus.FORBIDDEN, new ApiError("FORBIDDEN", "无权执行此操作"), request);
     }
 
     @ExceptionHandler(Exception.class)

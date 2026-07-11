@@ -105,9 +105,23 @@ npm run dev
 | `AI_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容服务地址 |
 | `AI_API_KEY` | 无 | AI 服务密钥，不得提交到仓库 |
 | `AI_MODEL` | `gpt-5-mini` | 默认模型，可按供应商修改 |
+| `JWT_SECRET` | 仅本地有开发默认值 | JWT HMAC 密钥，生产环境至少 32 字节且必须设置 |
+| `JWT_ISSUER` | `smart-travel-assistant` | JWT 签发者 |
+| `ACCESS_TOKEN_TTL` | `PT15M` | Access Token 有效期 |
+| `REFRESH_TOKEN_TTL` | `P30D` | Refresh Token 有效期 |
 | `VITE_API_BASE_URL` | `/api/v1` | 浏览器请求前缀 |
 
 后端环境通过 Spring Profile 区分：`dev` 用于本地调试，`test` 使用内存数据库隔离测试，`prod` 强制从环境变量读取数据库凭据。生产环境启动时应设置 `SPRING_PROFILES_ACTIVE=prod`。
+
+## 已实现接口
+
+- `POST /api/v1/auth/register`：注册并签发 Token
+- `POST /api/v1/auth/login`：登录
+- `POST /api/v1/auth/refresh`：一次性轮换 Refresh Token
+- `POST /api/v1/auth/logout`：幂等撤销 Refresh Token
+- `GET /api/v1/users/me`：查询当前用户
+- `PATCH /api/v1/users/me`：修改当前用户展示名称
+- `GET /api/v1/health`：健康检查
 
 ## 接口与开发约定
 

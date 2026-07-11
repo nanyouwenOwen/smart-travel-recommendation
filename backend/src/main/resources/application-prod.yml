@@ -15,3 +15,6 @@ logging:
     root: INFO
     com.travelassistant: INFO
 
+app:
+  auth:
+    jwt-secret: ${JWT_SECRET}

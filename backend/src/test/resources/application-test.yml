@@ -9,3 +9,9 @@ spring:
     hibernate:
       ddl-auto: create-drop
 
+app:
+  auth:
+    issuer: smart-travel-assistant-test
+    access-token-ttl: PT5M
+    refresh-token-ttl: PT1H
+    jwt-secret: test-secret-key-that-is-longer-than-thirty-two-bytes

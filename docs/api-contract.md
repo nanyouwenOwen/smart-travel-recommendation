@@ -24,6 +24,10 @@ X-Request-Id: <客户端生成的 UUID，可选>
 
 服务端每次响应都返回 `X-Request-Id`。创建行程请求还应包含 `Idempotency-Key`；同一用户在 24 小时内使用相同 Key 和相同请求体，应得到同一业务结果。
 
+Access Token 为 15 分钟有效的 Bearer JWT；Refresh Token 默认有效 30 天，只能使用一次并在刷新时轮换。服务端仅保存 Refresh Token 的 SHA-256 摘要。退出撤销 Refresh Token，但已签发的 Access Token 在短有效期内仍然有效。资源归属必须从 SecurityContext 获取用户 ID，不得信任请求参数中的 `userId`；越权读取单用户资源统一返回 404。
+
+密码长度为 8～72 个字符；鉴于 BCrypt 的输入边界，UTF-8 编码后还必须不超过 72 字节。
+
 ## 成功响应
 
 单对象统一包装：
@@ -118,4 +122,3 @@ data: {"messageId":"...","usage":{"inputTokens":120,"outputTokens":80}}
 2. 评估是否为破坏性变更；禁止无版本升级地删除字段、收紧枚举或改变语义。
 3. 更新后端实现及测试，再更新前端类型与交互。
 4. 在 `TODO.md` 勾选完成项，并确保 CI 中 OpenAPI 校验通过。
-
