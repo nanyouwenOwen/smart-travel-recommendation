@@ -1,0 +1,20 @@
+package com.travelassistant.system;
+
+import com.travelassistant.common.api.ApiResponse;
+import com.travelassistant.common.web.RequestIdFilter;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/health")
+public class HealthController {
+    @GetMapping
+    public ApiResponse<Map<String, String>> health(HttpServletRequest request) {
+        String requestId = (String) request.getAttribute(RequestIdFilter.ATTRIBUTE);
+        return ApiResponse.of(Map.of("status", "UP"), requestId);
+    }
+}
+

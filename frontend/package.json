@@ -1,0 +1,29 @@
+{
+  "name": "travel-assistant-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "type-check": "vue-tsc -b",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "pinia": "3.0.4",
+    "vue": "3.5.39",
+    "vue-router": "5.1.0"
+  },
+  "devDependencies": {
+    "@tsconfig/node24": "24.0.4",
+    "@types/node": "24.10.1",
+    "@vitejs/plugin-vue": "6.0.7",
+    "@vue/tsconfig": "0.8.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vue-tsc": "3.2.2"
+  }
+}

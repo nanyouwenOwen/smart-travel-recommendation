@@ -1,0 +1,398 @@
+openapi: 3.1.0
+info:
+  title: 智能旅游助手 API
+  version: 0.1.0
+  description: 前后端共同遵守的初始接口契约，业务接口将在实现时持续细化。
+servers:
+  - url: http://localhost:8080/api/v1
+    description: 本地开发
+tags:
+  - name: System
+  - name: Auth
+  - name: Trips
+  - name: Conversations
+paths:
+  /health:
+    get:
+      tags: [System]
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /trips:
+    get:
+      tags: [Trips]
+      operationId: listTrips
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 行程列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripListResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Trips]
+      operationId: createTrip
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTripRequest'
+      responses:
+        '202':
+          description: 已接受生成任务
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /trips/{tripId}:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      tags: [Trips]
+      operationId: getTrip
+      responses:
+        '200':
+          description: 行程详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripResponse'
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Trips]
+      operationId: deleteTrip
+      responses:
+        '204': { description: 删除成功 }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /trips/{tripId}/adjustments:
+    post:
+      tags: [Trips]
+      operationId: adjustTrip
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instruction]
+              properties:
+                instruction: { type: string, minLength: 2, maxLength: 2000 }
+      responses:
+        '202':
+          description: 已接受调整任务，新版本生成中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripResponse'
+        '404': { $ref: '#/components/responses/NotFound' }
+  /conversations:
+    post:
+      tags: [Conversations]
+      operationId: createConversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 100 }
+                tripId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: 会话创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationResponse'
+  /conversations/{conversationId}/messages:stream:
+    post:
+      tags: [Conversations]
+      operationId: streamMessage
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string, minLength: 1, maxLength: 5000 }
+      responses:
+        '200':
+          description: SSE 事件流，事件类型为 ack、delta、done、error
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: 请求参数不合法
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: 未认证或认证过期
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: 资源或幂等键冲突
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  schemas:
+    ResponseMeta:
+      type: object
+      required: [requestId]
+      properties:
+        requestId: { type: string }
+    HealthResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [status]
+          properties:
+            status: { type: string, const: UP }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    RegisterRequest:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 8, maxLength: 72, format: password }
+        displayName: { type: string, minLength: 1, maxLength: 50 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    AuthResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [accessToken, refreshToken, expiresIn]
+          properties:
+            accessToken: { type: string }
+            refreshToken: { type: string }
+            expiresIn: { type: integer, description: Access Token 剩余秒数 }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          examples: ['5000.00']
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          examples: [CNY]
+    CreateTripRequest:
+      type: object
+      required: [destination, startDate, days, budget, travelers, preferences, timezone]
+      properties:
+        destination: { type: string, minLength: 1, maxLength: 200 }
+        startDate: { type: string, format: date }
+        days: { type: integer, minimum: 1, maximum: 30 }
+        budget: { $ref: '#/components/schemas/Money' }
+        travelers: { type: integer, minimum: 1, maximum: 50 }
+        preferences:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 50 }
+        timezone: { type: string, examples: [Asia/Shanghai] }
+        additionalRequirements: { type: string, maxLength: 2000 }
+    TripSummary:
+      type: object
+      required: [id, destination, startDate, days, status, version, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        destination: { type: string }
+        startDate: { type: string, format: date }
+        days: { type: integer }
+        status: { type: string, enum: [DRAFT, GENERATING, READY, FAILED] }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+    Activity:
+      type: object
+      required: [startTime, endTime, title, location, estimatedCost]
+      properties:
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        title: { type: string }
+        location: { type: string }
+        description: { type: string }
+        estimatedCost: { $ref: '#/components/schemas/Money' }
+        transportAdvice: { type: string }
+    ItineraryDay:
+      type: object
+      required: [dayNumber, date, activities]
+      properties:
+        dayNumber: { type: integer, minimum: 1 }
+        date: { type: string, format: date }
+        activities:
+          type: array
+          items: { $ref: '#/components/schemas/Activity' }
+    Trip:
+      allOf:
+        - $ref: '#/components/schemas/TripSummary'
+        - type: object
+          required: [budget, travelers, preferences, timezone, itinerary]
+          properties:
+            budget: { $ref: '#/components/schemas/Money' }
+            estimatedTotal: { $ref: '#/components/schemas/Money' }
+            travelers: { type: integer }
+            preferences: { type: array, items: { type: string } }
+            timezone: { type: string }
+            warnings: { type: array, items: { type: string } }
+            itinerary: { type: array, items: { $ref: '#/components/schemas/ItineraryDay' } }
+    TripResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Trip' }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    TripListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/TripSummary' } }
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/ResponseMeta'
+            - type: object
+              required: [hasMore]
+              properties:
+                nextCursor: { type: string }
+                hasMore: { type: boolean }
+    ConversationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [id, createdAt]
+          properties:
+            id: { type: string, format: uuid }
+            title: { type: string }
+            tripId: { type: string, format: uuid }
+            createdAt: { type: string, format: date-time }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    ErrorResponse:
+      type: object
+      required: [error, meta]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, examples: [VALIDATION_ERROR] }
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  reason: { type: string }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+security:
+  - bearerAuth: []
+
