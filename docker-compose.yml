@@ -22,6 +22,9 @@ services:
       DB_USERNAME: ${MYSQL_USER:-travel}
       DB_PASSWORD: ${MYSQL_PASSWORD:-travel}
       JWT_SECRET: ${JWT_SECRET:-local-development-secret-must-be-at-least-32-bytes}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-5-mini}
       TRIP_AI_PROVIDER: ${TRIP_AI_PROVIDER:-stub}
       CONSULTATION_AI_PROVIDER: ${CONSULTATION_AI_PROVIDER:-stub}
       REALTIME_PROVIDER_MODE: ${REALTIME_PROVIDER_MODE:-stub}

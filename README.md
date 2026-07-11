@@ -191,4 +191,6 @@ bash scripts/e2e.sh
 
 ## 当前进度
 
-详细任务和勾选状态见 [`TODO.md`](TODO.md)。目前已完成项目骨架、用户认证、智能行程规划、AI 旅游咨询、完整前端交互与外部实时数据 MVP；正在进行最终交付加固。
+AI 协作治理、人工接入 DeepSeek/Xiaomi MiMo 等兼容模型、发布步骤及供后续模型审查的完整交接入口统一位于 [`docs/ai-governance/`](docs/ai-governance/README.md)。这些文档与产品接口、部署和业务文档分开维护；后续修改必须遵循根 [`AGENTS.md`](AGENTS.md) 的“规划—实施—独立审核与测试”循环。
+
+详细任务和勾选状态见 [`TODO.md`](TODO.md)。实现与 `0.1.0` 发布候选已通过独立审核和全量 CI；默认仍使用 Stub，真实模型、干净 Codespaces 验收及正式 tag/Release 属于文档列明的人工步骤。
