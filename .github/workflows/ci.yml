@@ -109,13 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
+      - run: docker run --rm -v "$PWD:/workspace" aquasec/trivy:0.58.2 fs --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 /workspace
 
   release-candidate:
     runs-on: ubuntu-latest

@@ -22,7 +22,7 @@ start="$(date -u -d tomorrow +%F)"
 trip="$(curl -fsS -H "$header" -H 'Content-Type: application/json' -H 'Idempotency-Key: compose-trip-1' -d "{\"destination\":\"Shanghai\",\"destinationLocationId\":\"$location\",\"startDate\":\"$start\",\"days\":2,\"budget\":{\"amount\":\"1000.00\",\"currency\":\"USD\"},\"travelers\":1,\"preferences\":[\"culture\"],\"timezone\":\"Asia/Shanghai\"}" "$base/api/v1/trips" | jq -r .data.id)"
 for _ in $(seq 1 30); do state="$(curl -fsS -H "$header" "$base/api/v1/trips/$trip" | jq -r .data.status)"; [[ "$state" == READY ]] && break; sleep 1; done; [[ "$state" == READY ]]
 conversation="$(curl -fsS -H "$header" -H 'Content-Type: application/json' -d "{\"title\":\"Smoke\",\"tripId\":\"$trip\"}" "$base/api/v1/conversations" | jq -r .data.id)"
-curl -fsSN -H "$header" -H 'Content-Type: application/json' -H 'Idempotency-Key: compose-stream-1' -d '{"content":"天气如何？"}' "$base/api/v1/conversations/$conversation/messages:stream" | grep -q 'event: done'
+curl -fsSN -H "$header" -H 'Content-Type: application/json' -H 'Idempotency-Key: compose-stream-1' -d '{"content":"天气如何？"}' "$base/api/v1/conversations/$conversation/messages:stream" | grep -Eq 'event: ?done'
 docker compose -p "$project" exec -T mysql sh -c 'exec mysqldump --single-transaction -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' | gzip > "$backup"; gzip -t "$backup"
 docker compose -p "$project" exec -T mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE restore_verify"'
 gzip -dc "$backup" | docker compose -p "$project" exec -T mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" restore_verify'
