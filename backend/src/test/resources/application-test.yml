@@ -15,3 +15,6 @@ app:
     access-token-ttl: PT5M
     refresh-token-ttl: PT1H
     jwt-secret: test-secret-key-that-is-longer-than-thirty-two-bytes
+  trip-planning:
+    provider: stub
+    user-requests-per-minute: 100

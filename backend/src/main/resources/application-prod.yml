@@ -18,3 +18,5 @@ logging:
 app:
   auth:
     jwt-secret: ${JWT_SECRET}
+  trip-planning:
+    provider: ${TRIP_AI_PROVIDER:openai-compatible}

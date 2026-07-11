@@ -159,6 +159,8 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /trips/{tripId}:
     parameters:
       - $ref: '#/components/parameters/TripId'
@@ -173,11 +175,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/TripResponse'
         '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Trips]
+      operationId: updateTrip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTripRequest' }
+      responses:
+        '202':
+          description: 已接受重新规划任务
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     delete:
       tags: [Trips]
       operationId: deleteTrip
       responses:
         '204': { description: 删除成功 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
   /trips/{tripId}/adjustments:
     post:
@@ -201,7 +224,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TripResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /trips/{tripId}/versions:
+    get:
+      tags: [Trips]
+      operationId: listTripVersions
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200':
+          description: 版本列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripVersionListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /trips/{tripId}/versions/{versionNumber}:
+    get:
+      tags: [Trips]
+      operationId: getTripVersion
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - name: versionNumber
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 历史版本详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripVersionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /trips/{tripId}/versions/{versionNumber}:restore:
+    post:
+      tags: [Trips]
+      operationId: restoreTripVersion
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - name: versionNumber
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 当前版本已切换
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /conversations:
     post:
       tags: [Conversations]
@@ -285,6 +365,16 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     Conflict:
       description: 资源或幂等键冲突
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    TooManyRequests:
+      description: 请求频率或并发超过限制
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ServiceUnavailable:
+      description: 生成队列或外部服务暂时不可用
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -381,21 +471,25 @@ components:
           items: { type: string, minLength: 1, maxLength: 50 }
         timezone: { type: string, examples: [Asia/Shanghai] }
         additionalRequirements: { type: string, maxLength: 2000 }
+    UpdateTripRequest:
+      $ref: '#/components/schemas/CreateTripRequest'
     TripSummary:
       type: object
-      required: [id, destination, startDate, days, status, version, createdAt]
+      required: [id, destination, startDate, days, status, createdAt]
       properties:
         id: { type: string, format: uuid }
         destination: { type: string }
         startDate: { type: string, format: date }
         days: { type: integer }
         status: { type: string, enum: [DRAFT, GENERATING, READY, FAILED] }
-        version: { type: integer, minimum: 1 }
+        currentVersion: { type: integer, minimum: 1 }
+        failureCode: { type: string }
         createdAt: { type: string, format: date-time }
     Activity:
       type: object
-      required: [startTime, endTime, title, location, estimatedCost]
+      required: [sequenceNumber, startTime, endTime, title, location, estimatedCost, category]
       properties:
+        sequenceNumber: { type: integer, minimum: 1 }
         startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
         endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
         title: { type: string }
@@ -403,12 +497,16 @@ components:
         description: { type: string }
         estimatedCost: { $ref: '#/components/schemas/Money' }
         transportAdvice: { type: string }
+        category:
+          type: string
+          enum: [TRANSPORTATION, ACCOMMODATION, FOOD, ATTRACTION, SHOPPING, OTHER]
     ItineraryDay:
       type: object
       required: [dayNumber, date, activities]
       properties:
         dayNumber: { type: integer, minimum: 1 }
         date: { type: string, format: date }
+        summary: { type: string }
         activities:
           type: array
           items: { $ref: '#/components/schemas/Activity' }
@@ -420,11 +518,28 @@ components:
           properties:
             budget: { $ref: '#/components/schemas/Money' }
             estimatedTotal: { $ref: '#/components/schemas/Money' }
+            currency: { type: string, pattern: '^[A-Z]{3}$' }
             travelers: { type: integer }
             preferences: { type: array, items: { type: string } }
             timezone: { type: string }
+            additionalRequirements: { type: string, maxLength: 2000 }
             warnings: { type: array, items: { type: string } }
             itinerary: { type: array, items: { $ref: '#/components/schemas/ItineraryDay' } }
+            budgetBreakdown: { $ref: '#/components/schemas/BudgetBreakdown' }
+    BudgetCategoryAmount:
+      type: object
+      required: [category, amount]
+      properties:
+        category: { type: string, enum: [TRANSPORTATION, ACCOMMODATION, FOOD, ATTRACTION, SHOPPING, OTHER] }
+        amount: { $ref: '#/components/schemas/Money' }
+    BudgetBreakdown:
+      type: object
+      required: [categories, total, exceedsBudget]
+      properties:
+        categories: { type: array, items: { $ref: '#/components/schemas/BudgetCategoryAmount' } }
+        total: { $ref: '#/components/schemas/Money' }
+        exceedsBudget: { type: boolean }
+        exceededBy: { $ref: '#/components/schemas/Money' }
     TripResponse:
       type: object
       required: [data, meta]
@@ -444,6 +559,33 @@ components:
               properties:
                 nextCursor: { type: string }
                 hasMore: { type: boolean }
+    TripVersionSummary:
+      type: object
+      required: [versionNumber, estimatedTotal, createdAt]
+      properties:
+        versionNumber: { type: integer, minimum: 1 }
+        estimatedTotal: { $ref: '#/components/schemas/Money' }
+        createdAt: { type: string, format: date-time }
+    TripVersionListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/TripVersionSummary' } }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    TripVersionResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          allOf:
+            - $ref: '#/components/schemas/TripVersionSummary'
+            - type: object
+              required: [itinerary, budgetBreakdown]
+              properties:
+                warnings: { type: array, items: { type: string } }
+                itinerary: { type: array, items: { $ref: '#/components/schemas/ItineraryDay' } }
+                budgetBreakdown: { $ref: '#/components/schemas/BudgetBreakdown' }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
     ConversationResponse:
       type: object
       required: [data, meta]

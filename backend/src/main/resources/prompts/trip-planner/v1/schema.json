@@ -1,0 +1,42 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["days", "warnings"],
+  "properties": {
+    "days": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dayNumber", "date", "summary", "activities"],
+        "properties": {
+          "dayNumber": {"type": "integer", "minimum": 1, "maximum": 30},
+          "date": {"type": "string", "format": "date"},
+          "summary": {"type": "string", "maxLength": 500},
+          "activities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["sequenceNumber", "startTime", "endTime", "title", "location", "description", "estimatedCost", "category", "transportAdvice"],
+              "properties": {
+                "sequenceNumber": {"type": "integer", "minimum": 1},
+                "startTime": {"type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"},
+                "endTime": {"type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"},
+                "title": {"type": "string", "minLength": 1, "maxLength": 200},
+                "location": {"type": "string", "minLength": 1, "maxLength": 300},
+                "description": {"type": "string", "minLength": 1, "maxLength": 4000},
+                "estimatedCost": {"type": "number", "minimum": 0, "multipleOf": 0.01},
+                "category": {"type": "string", "enum": ["TRANSPORTATION", "ACCOMMODATION", "FOOD", "ATTRACTION", "SHOPPING", "OTHER"]},
+                "transportAdvice": {"type": "string", "minLength": 1, "maxLength": 2000}
+              }
+            }
+          }
+        }
+      }
+    },
+    "warnings": {"type": "array", "maxItems": 20, "items": {"type": "string", "minLength": 1, "maxLength": 500}}
+  }
+}

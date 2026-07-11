@@ -31,3 +31,18 @@ app:
     access-token-ttl: ${ACCESS_TOKEN_TTL:PT15M}
     refresh-token-ttl: ${REFRESH_TOKEN_TTL:P30D}
     jwt-secret: ${JWT_SECRET:local-development-secret-must-be-at-least-32-bytes}
+  trip-planning:
+    provider: ${TRIP_AI_PROVIDER:stub}
+    prompt-version: trip-planner/v1
+    connect-timeout: ${TRIP_AI_CONNECT_TIMEOUT:PT5S}
+    request-timeout: ${TRIP_AI_REQUEST_TIMEOUT:PT45S}
+    total-timeout: ${TRIP_AI_TOTAL_TIMEOUT:PT2M}
+    max-attempts: ${TRIP_AI_MAX_ATTEMPTS:3}
+    global-concurrency: ${TRIP_AI_GLOBAL_CONCURRENCY:4}
+    user-requests-per-minute: ${TRIP_AI_USER_RPM:5}
+    job-stale-after: ${TRIP_JOB_STALE_AFTER:PT3M}
+    recovery-interval: ${TRIP_RECOVERY_INTERVAL:PT30S}
+    executor:
+      core-size: ${TRIP_EXECUTOR_CORE_SIZE:2}
+      max-size: ${TRIP_EXECUTOR_MAX_SIZE:4}
+      queue-capacity: ${TRIP_EXECUTOR_QUEUE_CAPACITY:50}

@@ -105,6 +105,14 @@ npm run dev
 | `AI_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容服务地址 |
 | `AI_API_KEY` | 无 | AI 服务密钥，不得提交到仓库 |
 | `AI_MODEL` | `gpt-5-mini` | 默认模型，可按供应商修改 |
+| `TRIP_AI_PROVIDER` | 本地 `stub`、生产 `openai-compatible` | 行程生成供应商；Stub 不访问网络 |
+| `TRIP_AI_CONNECT_TIMEOUT` / `TRIP_AI_REQUEST_TIMEOUT` | `PT5S` / `PT45S` | AI 连接与单次请求超时 |
+| `TRIP_AI_TOTAL_TIMEOUT` | `PT2M` | 包含重试和退避的单个生成任务总截止时间 |
+| `TRIP_AI_MAX_ATTEMPTS` | `3` | 瞬态故障最大尝试次数 |
+| `TRIP_AI_GLOBAL_CONCURRENCY` / `TRIP_AI_USER_RPM` | `4` / `5` | 单实例全局并发及每用户每分钟请求限制 |
+| `TRIP_EXECUTOR_CORE_SIZE` / `TRIP_EXECUTOR_MAX_SIZE` | `2` / `4` | 行程生成线程池大小 |
+| `TRIP_EXECUTOR_QUEUE_CAPACITY` | `50` | 行程生成等待队列容量 |
+| `TRIP_JOB_STALE_AFTER` / `TRIP_RECOVERY_INTERVAL` | `PT3M` / `PT30S` | 中断任务判定和恢复扫描间隔；应大于总截止时间 |
 | `JWT_SECRET` | 仅本地有开发默认值 | JWT HMAC 密钥，生产环境至少 32 字节且必须设置 |
 | `JWT_ISSUER` | `smart-travel-assistant` | JWT 签发者 |
 | `ACCESS_TOKEN_TTL` | `PT15M` | Access Token 有效期 |
@@ -121,7 +129,15 @@ npm run dev
 - `POST /api/v1/auth/logout`：幂等撤销 Refresh Token
 - `GET /api/v1/users/me`：查询当前用户
 - `PATCH /api/v1/users/me`：修改当前用户展示名称
+- `POST /api/v1/trips`：幂等提交行程生成任务，返回 `202`
+- `GET /api/v1/trips`、`GET /api/v1/trips/{tripId}`：分页查询及轮询生成状态
+- `PATCH /api/v1/trips/{tripId}`、`DELETE /api/v1/trips/{tripId}`：重新规划及软删除
+- `POST /api/v1/trips/{tripId}/adjustments`：通过自然语言生成完整新版本
+- `GET /api/v1/trips/{tripId}/versions`：查询不可变版本历史
+- `POST /api/v1/trips/{tripId}/versions/{versionNumber}:restore`：切换当前版本
 - `GET /api/v1/health`：健康检查
+
+行程生成默认使用确定性的 Stub，便于 Codespaces 和本地环境在没有密钥时完整演示。生产环境默认使用 OpenAI 兼容适配器，并要求 `AI_API_KEY`。超时、瞬态服务错误和供应商限流会有限重试；应用限流当前是单实例内存实现，横向扩容前需替换为网关或 Redis 共享限流。AI 行程中的价格、班次和营业信息均为建议，并不代表实时数据。
 
 ## 接口与开发约定
 
@@ -134,4 +150,4 @@ npm run dev
 
 ## 当前进度
 
-详细任务和勾选状态见 [`TODO.md`](TODO.md)。当前已完成项目骨架和第一版接口契约，业务功能尚未实现。
+详细任务和勾选状态见 [`TODO.md`](TODO.md)。目前已完成项目骨架、用户认证和智能行程规划后端，后续继续实现 AI 旅游咨询与前端交互。

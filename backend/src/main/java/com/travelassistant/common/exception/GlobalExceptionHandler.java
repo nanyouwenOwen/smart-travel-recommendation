@@ -5,6 +5,7 @@ import com.travelassistant.common.api.ApiErrorResponse;
 import com.travelassistant.common.api.ApiFieldError;
 import com.travelassistant.common.web.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,17 @@ public class GlobalExceptionHandler {
                                                    HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST,
                 new ApiError("MALFORMED_JSON", "请求内容不是有效的 JSON"), request);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    ResponseEntity<ApiErrorResponse> constraintViolation(ConstraintViolationException exception,
+                                                          HttpServletRequest request) {
+        List<ApiFieldError> details = exception.getConstraintViolations().stream()
+                .map(violation -> new ApiFieldError(violation.getPropertyPath().toString(),
+                        violation.getMessage()))
+                .toList();
+        return response(HttpStatus.BAD_REQUEST,
+                new ApiError("VALIDATION_ERROR", "请求参数不合法", details), request);
     }
 
     @ExceptionHandler(BusinessException.class)
