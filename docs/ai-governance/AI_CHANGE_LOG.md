@@ -28,4 +28,4 @@
 
 - 触发：Round 09 审核证明旧 security job 忽略 unfixed 漏洞，且无认证审核无法下载 artifact 核对内部绑定，发布清单第 2/5 项因此不成立。
 - 实施：security job 先从当前 checkout 打包实际后端 JAR，再用固定 Trivy 0.58.2 对所有 High/Critical（包含无修复版本项）阻断；secret 扫描改为仅扫描 `git archive HEAD` 的受版本控制源文件。新增候选校验脚本，上传前验证固定文件集、完整 Git SHA、不自包含的 SHA-256 清单、双 CycloneDX SBOM 和 JAR/tar 可读性，并写入脱敏 Actions summary。
-- 本地证据：完整 `scripts/check.sh`、Shell 语法和 diff check 通过；实施与独立 reviewer 均重建候选并正向通过，reviewer 对删除/置空/SHA 错误/篡改/自包含清单/坏 SBOM/坏 JAR/坏 tar/额外文件 9 类负向用例均确认非零退出，Round 10 实现审核 `PASS`。实际 Trivy 数据库与 JAR 扫描结果待本轮准确提交 CI 核验。
+- 验证证据：完整 `scripts/check.sh`、Shell 语法和 diff check 通过；实施与独立 reviewer 均重建候选并正向通过，reviewer 对删除/置空/SHA 错误/篡改/自包含清单/坏 SBOM/坏 JAR/坏 tar/额外文件 9 类负向用例均确认非零退出。提交 `0f1930b` 的 GitHub Actions run `29166218083` 七个 job 全绿，security 四个关键步骤和候选上传前校验均成功，产物 digest 见 `PROJECT_HANDOFF.md`；Round 10 独立审核最终 `PASS`。

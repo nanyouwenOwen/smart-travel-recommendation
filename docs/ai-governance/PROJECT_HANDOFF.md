@@ -31,6 +31,8 @@ Round 08 Compose smoke 可靠性候选证据：提交 `4016764`；[GitHub Action
 
 Round 08 证据同步 HEAD `2eb538b` 的 [GitHub Actions run `29165523778`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29165523778) 也已七个 job 全绿；artifact `smart-travel-assistant-0.1.0-rc` digest 为 `sha256:de642becadd443090be4121d874e90c68fa8d6cf4a3f092200afc5810092fedd`。Round 09 审核确认仍缺两项发布正向证据：安全门会忽略无修复版本漏洞，artifact 内部文件/GIT SHA/校验和未直接核对。在下一轮闭环前不得宣称自动化发布证据完整，tag/GitHub Release 也仍未获得授权。
 
+Round 10 已关闭上述两项缺口：提交 `0f1930b513d8d0038e51eb07e5435a3c624fce7c` 的 [GitHub Actions run `29166218083`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29166218083) 七个 job 全绿，安全门对当前 JAR 扫描所有 High/Critical 且不忽略 unfixed，候选产物在上传前完成文件/SHA/校验和/SBOM/归档自校验。Artifact `smart-travel-assistant-0.1.0-rc` 为 56,319,725 bytes，digest `sha256:77ba570b13e6c8a7bb2f65f300907d1c744c9a1e41c451354fbe2f79e4506cda`；Round 10 独立审核最终 `PASS`。自动化发布前置条件现已完整，但 tag/GitHub Release 仍需用户明确授权。
+
 ## 接手步骤
 
 1. 阅读 `AGENTS.md` 与 `docs/ai-governance/WORKFLOW.md`。

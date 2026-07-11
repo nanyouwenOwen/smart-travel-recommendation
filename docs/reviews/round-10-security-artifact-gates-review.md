@@ -72,3 +72,34 @@ Reviewer 用当前构建的后端 JAR、前端 `dist`、重新生成的前端 Cy
 4. 只有上述证据成立后，才能在后续证据提交中重新勾选发布清单第二、第五项。该证据提交还需轻量独立复核和自身 CI 全绿。
 
 `TODO.md` 的“发布 MVP”、tag、GitHub Release、部署、真实 DeepSeek/MiMo 验收和全新 Codespace 人工验收不属于本次 PASS；仍必须遵守各自授权和证据条件。
+
+## 准确提交 CI 最终复核
+
+**最终结论：PASS**
+
+Reviewer 于 2026-07-12 通过 GitHub Actions REST API和公开 job 页面独立复核了实现提交 [`0f1930b513d8d0038e51eb07e5435a3c624fce7c`](https://github.com/nanyouwenOwen/smart-travel-recommendation/commit/0f1930b513d8d0038e51eb07e5435a3c624fce7c) 的 [run `29166218083`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29166218083)：
+
+- run 为首次执行的 `push`，`head_sha` 精确等于上述提交，状态为 `completed/success`；执行时间为 `2026-07-11T19:59:21Z` 至 `20:03:32Z`。
+- `openapi`、`frontend`、`backend`、`e2e`、`container-smoke`、`security`、`release-candidate` 七个 job 均为 `completed/success`。这不是用历史绿色 run 或其他提交替代本轮证据。
+- `security` job `86579661949` 中 “Build the backend release JAR from this checkout”、“Record the fixed scanner version”、“Scan the release JAR for every High or Critical vulnerability” 和 “Scan only tracked source files for secrets” 四个关键 step 均为 `completed/success`。结合该准确提交中已经审计的固定 `aquasec/trivy:0.58.2`、无 `--ignore-unfixed`、`HIGH,CRITICAL --exit-code 1` 和实际 JAR 路径，可证明当次当前 JAR 漏洞门及仅 tracked source 的 secret 门均未发现阻断结果。
+- `release-candidate` job `86579941834` 的 “Verify release candidate before upload” 为 step 9、`completed/success`；上传为后续 step 10、同样 `completed/success`。因此固定白名单、准确 `GIT_SHA`、完整且不自含的 `SHA256SUMS`、双 CycloneDX SBOM 和双归档验证均在上传前执行并通过。
+- 同一 run 产生未过期 artifact `smart-travel-assistant-0.1.0-rc`，artifact id `8252248407`，大小 `56,319,725` bytes，digest 为 `sha256:77ba570b13e6c8a7bb2f65f300907d1c744c9a1e41c451354fbe2f79e4506cda`；artifact 元数据内的 workflow run id 与 `head_sha` 也精确匹配本轮 run/commit。
+
+未认证 REST job-log 下载端点返回 HTTP 403，因此 reviewer 没有声称直接下载了完整控制台日志或 artifact ZIP；最终判断来自 GitHub 返回的准确 run/job/step/artifact 状态、已审核的同提交工作流与脚本控制流，以及本轮独立正向和负向行为测试。公开 job 页面也独立显示上述关键 step 名称及成功结论。该限制不会把成功 step 误写成 artifact 内容的人工解压，但不削弱“同一 run 在上传前执行强制自校验”的 CI 证据链。
+
+Round 09 的两项实现级阻断现已关闭，可进入后续证据同步：发布清单第二、第五项只能在记录本次准确 SHA/run/artifact 后重新勾选，并且该证据提交仍需轻量独立复核及自身 CI 全绿。此最终 PASS 仍不授权或证明 annotated tag、GitHub Release、部署或 `TODO.md` 的“发布 MVP”完成。
+
+## 证据同步轻量复核
+
+**结论：PASS（证据提交自身 CI 仍待推送后核验）**
+
+实施终端依据上述最终复核同步修改了 `docs/release-checklist.md`、`docs/reports/mvp-verification.md`、`docs/ai-governance/PROJECT_HANDOFF.md` 和 `docs/ai-governance/AI_CHANGE_LOG.md`。Reviewer 对实际 diff 逐项核对如下：
+
+- 发布清单只重新勾选第 2 项“依赖审计无未处置 High/Critical”和第 5 项“候选产物绑定同一 Git SHA”；第 6 项 tag/GitHub Release 授权仍为 `[ ]`，`TODO.md` 未出现在本次 diff 中且“发布 MVP”仍为 `[ ]`。
+- 四份证据文档均准确引用实现提交 `0f1930b513d8d0038e51eb07e5435a3c624fce7c`（允许展示短 SHA `0f1930b`）及 GitHub Actions run `29166218083`，没有用 Round 08 的历史 run 替代本轮证据。
+- 安全声明与实际门一致：当前 checkout 构建实际 JAR、固定 Trivy 0.58.2、`HIGH,CRITICAL --exit-code 1`、不使用 `--ignore-unfixed`，并独立扫描 tracked source secrets。文档没有虚构漏洞 allowlist、人工风险接受或运行时镜像扫描。
+- 候选声明与实际门一致：`scripts/verify-release-candidate.sh` 在上传前验证固定文件集、完整 `GIT_SHA`、完整且不自含并实际复验的 `SHA256SUMS`、双 CycloneDX SBOM 和 JAR/tar 结构。Artifact 名称、大小 `56,319,725` bytes 和 digest `sha256:77ba570b13e6c8a7bb2f65f300907d1c744c9a1e41c451354fbe2f79e4506cda` 与独立 GitHub API 核验完全一致。
+- `PROJECT_HANDOFF.md` 与 MVP 报告仍明确记录真实 DeepSeek/Xiaomi MiMo、全新 Codespaces、正式 tag/Release 等人工边界；“自动化前置条件完整”和“可发布”没有被写成“已经发布”。AI 日志准确记录了本轮 AI 实施、独立审核和实际验证结果，没有写入凭据或私密提示词。
+- `git diff --check`：PASS；定向扫描未发现 TODO/授权越权勾选、旧缺口声明残留在当前结论中、错误 SHA/run/digest 或疑似凭据。
+
+证据同步内容通过轻量复核，可以提交并推送普通文档。按 Round 10 计划，该证据提交自己的七个 CI job 仍须全部成功后，才能把本轮闭环视为完成；本结论不授权创建 tag、GitHub Release 或部署。
