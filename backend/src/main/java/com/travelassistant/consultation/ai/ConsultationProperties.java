@@ -1,0 +1,2 @@
+package com.travelassistant.consultation.ai;import java.time.Duration;import org.springframework.boot.context.properties.ConfigurationProperties;
+@ConfigurationProperties("app.consultation")public record ConsultationProperties(String provider,int globalConcurrency,int userRpm,int userConcurrency,Duration requestTimeout,Duration totalTimeout,Duration firstByteTimeout,Duration idleTimeout,int maxAttempts,Duration eventRetention,Duration disconnectGrace){}

@@ -161,6 +161,7 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
   /trips/{tripId}:
     parameters:
       - $ref: '#/components/parameters/TripId'
@@ -175,6 +176,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TripResponse'
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '401': { $ref: '#/components/responses/Unauthorized' }
     patch:
       tags: [Trips]
@@ -195,6 +197,8 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
     delete:
       tags: [Trips]
       operationId: deleteTrip
@@ -202,6 +206,7 @@ paths:
         '204': { description: 删除成功 }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /trips/{tripId}/adjustments:
     post:
       tags: [Trips]
@@ -283,6 +288,18 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
   /conversations:
+    get:
+      tags: [Conversations]
+      operationId: listConversations
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 当前用户的会话列表
+          content: { application/json: { schema: { $ref: '#/components/schemas/ConversationListResponse' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       tags: [Conversations]
       operationId: createConversation
@@ -290,11 +307,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              properties:
-                title: { type: string, maxLength: 100 }
-                tripId: { type: string, format: uuid }
+            schema: { $ref: '#/components/schemas/CreateConversationRequest' }
       responses:
         '201':
           description: 会话创建成功
@@ -302,30 +315,111 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConversationResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /conversations/{conversationId}:
+    get:
+      tags: [Conversations]
+      operationId: getConversation
+      parameters: [{ $ref: '#/components/parameters/ConversationId' }]
+      responses:
+        '200':
+          description: 会话及消息详情
+          content: { application/json: { schema: { $ref: '#/components/schemas/ConversationResponse' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /conversations/{conversationId}/messages:
+    get:
+      tags: [Conversations]
+      operationId: listConversationMessages
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 消息正序分页
+          content: { application/json: { schema: { $ref: '#/components/schemas/ConversationMessageListResponse' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Conversations]
+      operationId: sendConversationMessage
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SendMessageRequest' } } }
+      responses:
+        '200':
+          description: 幂等重放已完成的同一问答
+          content: { application/json: { schema: { $ref: '#/components/schemas/MessageTurnResponse' } } }
+        '201':
+          description: 问答完成
+          content: { application/json: { schema: { $ref: '#/components/schemas/MessageTurnResponse' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
   /conversations/{conversationId}/messages:stream:
     post:
       tags: [Conversations]
       operationId: streamMessage
       parameters:
-        - name: conversationId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/ConversationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [content]
-              properties:
-                content: { type: string, minLength: 1, maxLength: 5000 }
+            schema: { $ref: '#/components/schemas/SendMessageRequest' }
       responses:
         '200':
           description: SSE 事件流，事件类型为 ack、delta、done、error
           content:
             text/event-stream:
               schema: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+  /conversations/{conversationId}/streams/{streamId}:
+    get:
+      tags: [Conversations]
+      operationId: replayConversationStream
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - $ref: '#/components/parameters/StreamId'
+        - name: Last-Event-ID
+          in: header
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: 从指定事件之后重放 SSE
+          content: { text/event-stream: { schema: { type: string } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Conversations]
+      operationId: cancelConversationStream
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - $ref: '#/components/parameters/StreamId'
+      responses:
+        '204': { description: 流已取消或已处于终态 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
@@ -347,6 +441,21 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    StreamId:
+      name: streamId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
   responses:
     BadRequest:
       description: 请求参数不合法
@@ -375,6 +484,11 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     ServiceUnavailable:
       description: 生成队列或外部服务暂时不可用
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    GatewayTimeout:
+      description: AI 调用超过截止时间
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -586,19 +700,131 @@ components:
                 itinerary: { type: array, items: { $ref: '#/components/schemas/ItineraryDay' } }
                 budgetBreakdown: { $ref: '#/components/schemas/BudgetBreakdown' }
         meta: { $ref: '#/components/schemas/ResponseMeta' }
+    CreateConversationRequest:
+      type: object
+      properties:
+        title: { type: string, maxLength: 100 }
+        tripId: { type: string, format: uuid }
+    SendMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 5000 }
+    ConversationMessage:
+      type: object
+      required: [id, role, content, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [USER, ASSISTANT] }
+        content: { type: string }
+        status: { type: string, enum: [PENDING, STREAMING, COMPLETED, FAILED] }
+        tripVersionNumber: { type: integer, minimum: 1 }
+        model: { type: string }
+        usage:
+          type: object
+          properties:
+            inputTokens: { type: integer, minimum: 0 }
+            outputTokens: { type: integer, minimum: 0 }
+        errorCode: { type: string }
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time }
+    Conversation:
+      type: object
+      required: [id, createdAt, updatedAt, messages]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        tripId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        messages: { type: array, items: { $ref: '#/components/schemas/ConversationMessage' } }
     ConversationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Conversation' }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    ConversationListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [id, updatedAt]
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
+              tripId: { type: string, format: uuid }
+              updatedAt: { type: string, format: date-time }
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/ResponseMeta'
+            - type: object
+              required: [hasMore]
+              properties:
+                nextCursor: { type: string }
+                hasMore: { type: boolean }
+    ConversationMessageListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ConversationMessage' } }
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/ResponseMeta'
+            - type: object
+              required: [hasMore]
+              properties:
+                nextCursor: { type: string }
+                hasMore: { type: boolean }
+    MessageTurnResponse:
       type: object
       required: [data, meta]
       properties:
         data:
           type: object
-          required: [id, createdAt]
+          required: [userMessage, assistantMessage, replayed]
           properties:
-            id: { type: string, format: uuid }
-            title: { type: string }
-            tripId: { type: string, format: uuid }
-            createdAt: { type: string, format: date-time }
+            userMessage: { $ref: '#/components/schemas/ConversationMessage' }
+            assistantMessage: { $ref: '#/components/schemas/ConversationMessage' }
+            replayed: { type: boolean }
         meta: { $ref: '#/components/schemas/ResponseMeta' }
+    StreamAckEvent:
+      type: object
+      required: [streamId, userMessageId, assistantMessageId, eventId]
+      properties:
+        streamId: { type: string, format: uuid }
+        userMessageId: { type: string, format: uuid }
+        assistantMessageId: { type: string, format: uuid }
+        eventId: { type: integer, minimum: 1 }
+    StreamDeltaEvent:
+      type: object
+      required: [streamId, messageId, sequence, content]
+      properties:
+        streamId: { type: string, format: uuid }
+        messageId: { type: string, format: uuid }
+        sequence: { type: integer, minimum: 1 }
+        content: { type: string }
+    StreamDoneEvent:
+      type: object
+      required: [streamId, messageId, status, usage, replayed]
+      properties:
+        streamId: { type: string, format: uuid }
+        messageId: { type: string, format: uuid }
+        status: { type: string, const: COMPLETED }
+        usage: { type: object }
+        replayed: { type: boolean }
+    StreamErrorEvent:
+      type: object
+      required: [streamId, code, message, retryable, final]
+      properties:
+        streamId: { type: string, format: uuid }
+        code: { type: string }
+        message: { type: string }
+        retryable: { type: boolean }
+        final: { type: boolean }
     ErrorResponse:
       type: object
       required: [error, meta]

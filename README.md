@@ -113,6 +113,12 @@ npm run dev
 | `TRIP_EXECUTOR_CORE_SIZE` / `TRIP_EXECUTOR_MAX_SIZE` | `2` / `4` | 行程生成线程池大小 |
 | `TRIP_EXECUTOR_QUEUE_CAPACITY` | `50` | 行程生成等待队列容量 |
 | `TRIP_JOB_STALE_AFTER` / `TRIP_RECOVERY_INTERVAL` | `PT3M` / `PT30S` | 中断任务判定和恢复扫描间隔；应大于总截止时间 |
+| `CONSULTATION_AI_PROVIDER` | 本地 `stub`、生产 `openai-compatible` | 旅游咨询供应商 |
+| `CONSULTATION_GLOBAL_CONCURRENCY` / `CONSULTATION_USER_RPM` | `4` / `20` | 单实例咨询并发及用户频率限制 |
+| `CONSULTATION_USER_CONCURRENCY` | `1` | 单用户同时进行的咨询数 |
+| `CONSULTATION_REQUEST_TIMEOUT` / `CONSULTATION_TOTAL_TIMEOUT` | `PT45S` / `PT60S` | 单次读取及完整咨询截止时间 |
+| `CONSULTATION_DISCONNECT_GRACE` | `PT30S` | SSE 断线后的手动重连宽限期 |
+| `CONSULTATION_EVENT_RETENTION` | `PT10M` | SSE 事件重放保留时间 |
 | `JWT_SECRET` | 仅本地有开发默认值 | JWT HMAC 密钥，生产环境至少 32 字节且必须设置 |
 | `JWT_ISSUER` | `smart-travel-assistant` | JWT 签发者 |
 | `ACCESS_TOKEN_TTL` | `PT15M` | Access Token 有效期 |
@@ -135,6 +141,10 @@ npm run dev
 - `POST /api/v1/trips/{tripId}/adjustments`：通过自然语言生成完整新版本
 - `GET /api/v1/trips/{tripId}/versions`：查询不可变版本历史
 - `POST /api/v1/trips/{tripId}/versions/{versionNumber}:restore`：切换当前版本
+- `POST/GET /api/v1/conversations`：创建和查看自己的咨询会话
+- `POST /api/v1/conversations/{id}/messages`：普通 AI 旅游问答
+- `POST /api/v1/conversations/{id}/messages:stream`：SSE 流式旅游问答
+- `GET/DELETE /api/v1/conversations/{id}/streams/{streamId}`：事件重放和取消
 - `GET /api/v1/health`：健康检查
 
 行程生成默认使用确定性的 Stub，便于 Codespaces 和本地环境在没有密钥时完整演示。生产环境默认使用 OpenAI 兼容适配器，并要求 `AI_API_KEY`。超时、瞬态服务错误和供应商限流会有限重试；应用限流当前是单实例内存实现，横向扩容前需替换为网关或 Redis 共享限流。AI 行程中的价格、班次和营业信息均为建议，并不代表实时数据。
@@ -150,4 +160,4 @@ npm run dev
 
 ## 当前进度
 
-详细任务和勾选状态见 [`TODO.md`](TODO.md)。目前已完成项目骨架、用户认证和智能行程规划后端，后续继续实现 AI 旅游咨询与前端交互。
+详细任务和勾选状态见 [`TODO.md`](TODO.md)。目前已完成项目骨架、用户认证、智能行程规划后端和 AI 旅游咨询后端，下一阶段实现完整前端交互。

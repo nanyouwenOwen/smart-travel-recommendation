@@ -46,3 +46,15 @@ app:
       core-size: ${TRIP_EXECUTOR_CORE_SIZE:2}
       max-size: ${TRIP_EXECUTOR_MAX_SIZE:4}
       queue-capacity: ${TRIP_EXECUTOR_QUEUE_CAPACITY:50}
+  consultation:
+    provider: ${CONSULTATION_AI_PROVIDER:stub}
+    global-concurrency: ${CONSULTATION_GLOBAL_CONCURRENCY:4}
+    user-rpm: ${CONSULTATION_USER_RPM:20}
+    user-concurrency: ${CONSULTATION_USER_CONCURRENCY:1}
+    request-timeout: ${CONSULTATION_REQUEST_TIMEOUT:PT45S}
+    total-timeout: ${CONSULTATION_TOTAL_TIMEOUT:PT60S}
+    first-byte-timeout: ${CONSULTATION_FIRST_BYTE_TIMEOUT:PT15S}
+    idle-timeout: ${CONSULTATION_IDLE_TIMEOUT:PT20S}
+    max-attempts: ${CONSULTATION_MAX_ATTEMPTS:2}
+    event-retention: ${CONSULTATION_EVENT_RETENTION:PT10M}
+    disconnect-grace: ${CONSULTATION_DISCONNECT_GRACE:PT30S}

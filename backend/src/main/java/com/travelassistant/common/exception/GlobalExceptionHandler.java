@@ -6,6 +6,7 @@ import com.travelassistant.common.api.ApiFieldError;
 import com.travelassistant.common.web.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import com.travelassistant.consultation.security.UnsafeContentException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +54,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     ResponseEntity<ApiErrorResponse> business(BusinessException exception, HttpServletRequest request) {
         return response(exception.getStatus(),
+                new ApiError(exception.getCode(), exception.getMessage()), request);
+    }
+
+    @ExceptionHandler(UnsafeContentException.class)
+    ResponseEntity<ApiErrorResponse> unsafeContent(UnsafeContentException exception, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST,
                 new ApiError(exception.getCode(), exception.getMessage()), request);
     }
 

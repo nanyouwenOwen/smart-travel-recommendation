@@ -118,7 +118,15 @@ data: {"messageId":"...","usage":{"inputTokens":120,"outputTokens":80}}
 - `done`：生成成功结束
 - `error`：流内错误；发出后连接结束
 
-服务端每 15 秒发送注释心跳 `: ping`。客户端必须按事件累加内容，收到 `done` 后以服务端消息详情为最终状态。SSE 已开始后发生的错误用 `error` 事件表达，不再依赖 HTTP 状态码。
+所有业务事件均有十进制 SSE `id`。`ack` 数据包含 `streamId/userMessageId/assistantMessageId/eventId`；`delta` 包含 `streamId/messageId/sequence/content`，其中 sequence 与 SSE id 一致；`done` 包含 `streamId/messageId/status/usage/replayed`；`error` 包含 `streamId/code/message/retryable/final`。流响应设置 `Cache-Control: no-cache, no-store` 和 `X-Accel-Buffering: no`。
+
+服务端每 15 秒发送注释心跳 `: ping`。客户端断开后有 30 秒重连宽限；宽限内 Provider 可继续生成并将安全事件写入重放日志，超时无人连接才取消。客户端必须按事件累加内容，收到 `done` 后以服务端消息详情为最终状态。SSE 已开始后发生的错误用 `error` 事件表达，不再依赖 HTTP 状态码。
+
+普通问答使用 `POST /conversations/{conversationId}/messages`。普通和流式问答均要求 `Idempotency-Key`；同一会话、操作和 Key 的相同内容不会重复调用 AI，不同内容返回 `409 IDEMPOTENCY_KEY_CONFLICT`。同一会话最多一个生成中的 turn。
+
+每个流事件包含单调递增的 SSE `id`。首次 `ack` 返回 `streamId`；客户端断线后可用 `GET /conversations/{conversationId}/streams/{streamId}` 和 `Last-Event-ID` 重放数据库中尚未接收的事件。显式取消使用同路径的 `DELETE`，幂等返回 204。当前 MVP 是单实例流注册表，水平扩展前需配置粘性路由或共享事件总线。
+
+会话可绑定当前用户的 READY 行程。每个 turn 保存实际使用的行程版本，因此后续调整或回退不会改变历史问答上下文。用户内容、历史和行程摘要始终作为数据传入，不能提升为 system 指令；邮箱和电话会遮蔽，疑似密钥、系统提示窃取及危险内容在调用 Provider 前拒绝。
 
 ## 契约变更流程
 
