@@ -1,2 +1,48 @@
-package com.travelassistant.consultation;import static org.assertj.core.api.Assertions.assertThat;import static org.mockito.Mockito.*;import com.travelassistant.realtime.RealtimeService;import com.travelassistant.realtime.api.RealtimeDtos.*;import java.util.List;import org.junit.jupiter.api.Test;import tools.jackson.databind.json.JsonMapper;
-class RealtimeConsultationContextTest {@Test void onlyFetchesIntentDataAndKeepsServerSources(){RealtimeService service=mock(RealtimeService.class);DataSourceReference source=new DataSourceReference("OPEN_METEO","Open-Meteo","https://open-meteo.com/","CC BY 4.0","2026-07-12T00:00:00Z",null,Freshness.FRESH);when(service.weather("u","t")).thenReturn(new WeatherSnapshot("Asia/Shanghai",List.of(),List.of(),List.of(source),Freshness.FRESH,null));var result=new RealtimeConsultationContext(service,JsonMapper.builder().build()).resolve("u","t","明天天气如何");assertThat(result.prompt()).contains("<realtime-data encoding=","不可信 JSON 数据");assertThat(result.sources()).containsExactly(source);verify(service).weather("u","t");verify(service,never()).places(anyString(),anyString(),anyInt());}@Test void providerFailureIsExplicitAndHasNoSources(){RealtimeService service=mock(RealtimeService.class);when(service.weather(anyString(),anyString())).thenThrow(new RuntimeException());var result=new RealtimeConsultationContext(service,JsonMapper.builder().build()).resolve("u","t","天气");assertThat(result.prompt()).contains("本回答未使用实时数据");assertThat(result.sources()).isEmpty();}}
+package com.travelassistant.consultation;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
+
+import com.travelassistant.realtime.RealtimeService;
+import com.travelassistant.realtime.api.RealtimeDtos.*;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
+
+class RealtimeConsultationContextTest {
+  @Test
+  void onlyFetchesIntentDataAndKeepsServerSources() {
+    RealtimeService service = mock(RealtimeService.class);
+    DataSourceReference source =
+        new DataSourceReference(
+            "OPEN_METEO",
+            "Open-Meteo",
+            "https://open-meteo.com/",
+            "CC BY 4.0",
+            "2026-07-12T00:00:00Z",
+            null,
+            Freshness.FRESH);
+    when(service.weather("u", "t"))
+        .thenReturn(
+            new WeatherSnapshot(
+                "Asia/Shanghai", List.of(), List.of(), List.of(source), Freshness.FRESH, null));
+    var result =
+        new RealtimeConsultationContext(service, JsonMapper.builder().build())
+            .resolve("u", "t", "明天天气如何");
+    assertThat(result.prompt()).contains("<realtime-data encoding=", "不可信 JSON 数据");
+    assertThat(result.sources()).containsExactly(source);
+    verify(service).weather("u", "t");
+    verify(service, never()).places(anyString(), anyString(), anyInt());
+  }
+
+  @Test
+  void providerFailureIsExplicitAndHasNoSources() {
+    RealtimeService service = mock(RealtimeService.class);
+    when(service.weather(anyString(), anyString())).thenThrow(new RuntimeException());
+    var result =
+        new RealtimeConsultationContext(service, JsonMapper.builder().build())
+            .resolve("u", "t", "天气");
+    assertThat(result.prompt()).contains("本回答未使用实时数据");
+    assertThat(result.sources()).isEmpty();
+  }
+}

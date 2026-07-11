@@ -1,9 +1,55 @@
 package com.travelassistant.realtime;
-import com.travelassistant.common.api.*; import com.travelassistant.common.web.RequestIdFilter; import com.travelassistant.realtime.api.RealtimeDtos.*; import jakarta.servlet.http.HttpServletRequest; import jakarta.validation.constraints.*; import java.security.Principal; import java.util.List; import org.springframework.validation.annotation.Validated; import org.springframework.web.bind.annotation.*;
-@Validated @RestController @RequestMapping("/api/v1") public class RealtimeController {
- private final RealtimeService service; public RealtimeController(RealtimeService s){service=s;}
- @GetMapping("/locations/search") ApiResponse<List<LocationResult>> search(Principal principal,@RequestParam @Size(min=2,max=120)String q,@RequestParam(defaultValue="zh-CN")@Size(min=2,max=35)String language,@RequestParam(defaultValue="5")@Min(1)@Max(10)int limit,HttpServletRequest req){return ApiResponse.of(service.search(principal.getName(),q,language,limit),id(req));}
- @GetMapping("/trips/{tripId}/realtime/weather") ApiResponse<WeatherSnapshot> weather(Principal p,@PathVariable String tripId,HttpServletRequest req){return ApiResponse.of(service.weather(p.getName(),tripId),id(req));}
- @GetMapping("/trips/{tripId}/realtime/places") ApiResponse<PlaceSnapshot> places(Principal p,@PathVariable String tripId,@RequestParam(defaultValue="ATTRACTION")String category,@RequestParam(defaultValue="10")@Min(1)@Max(20)int limit,HttpServletRequest req){if(!"ATTRACTION".equals(category))throw new com.travelassistant.common.exception.BusinessException("VALIDATION_ERROR","仅支持 ATTRACTION",org.springframework.http.HttpStatus.BAD_REQUEST);return ApiResponse.of(service.places(p.getName(),tripId,limit),id(req));}
- private String id(HttpServletRequest r){return (String)r.getAttribute(RequestIdFilter.ATTRIBUTE);}
+
+import com.travelassistant.common.api.*;
+import com.travelassistant.common.web.RequestIdFilter;
+import com.travelassistant.realtime.api.RealtimeDtos.*;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.*;
+import java.security.Principal;
+import java.util.List;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+
+@Validated
+@RestController
+@RequestMapping("/api/v1")
+public class RealtimeController {
+  private final RealtimeService service;
+
+  public RealtimeController(RealtimeService s) {
+    service = s;
+  }
+
+  @GetMapping("/locations/search")
+  ApiResponse<List<LocationResult>> search(
+      Principal principal,
+      @RequestParam @Size(min = 2, max = 120) String q,
+      @RequestParam(defaultValue = "zh-CN") @Size(min = 2, max = 35) String language,
+      @RequestParam(defaultValue = "5") @Min(1) @Max(10) int limit,
+      HttpServletRequest req) {
+    return ApiResponse.of(service.search(principal.getName(), q, language, limit), id(req));
+  }
+
+  @GetMapping("/trips/{tripId}/realtime/weather")
+  ApiResponse<WeatherSnapshot> weather(
+      Principal p, @PathVariable String tripId, HttpServletRequest req) {
+    return ApiResponse.of(service.weather(p.getName(), tripId), id(req));
+  }
+
+  @GetMapping("/trips/{tripId}/realtime/places")
+  ApiResponse<PlaceSnapshot> places(
+      Principal p,
+      @PathVariable String tripId,
+      @RequestParam(defaultValue = "ATTRACTION") String category,
+      @RequestParam(defaultValue = "10") @Min(1) @Max(20) int limit,
+      HttpServletRequest req) {
+    if (!"ATTRACTION".equals(category))
+      throw new com.travelassistant.common.exception.BusinessException(
+          "VALIDATION_ERROR", "仅支持 ATTRACTION", org.springframework.http.HttpStatus.BAD_REQUEST);
+    return ApiResponse.of(service.places(p.getName(), tripId, limit), id(req));
+  }
+
+  private String id(HttpServletRequest r) {
+    return (String) r.getAttribute(RequestIdFilter.ATTRIBUTE);
+  }
 }

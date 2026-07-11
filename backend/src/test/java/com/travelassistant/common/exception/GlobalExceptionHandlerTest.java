@@ -4,9 +4,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.travelassistant.common.web.RequestIdFilter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import com.travelassistant.common.web.RequestIdFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -18,29 +18,30 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @WebMvcTest
-@ContextConfiguration(classes = {GlobalExceptionHandlerTest.TestController.class, GlobalExceptionHandler.class,
-        RequestIdFilter.class})
+@ContextConfiguration(
+    classes = {
+      GlobalExceptionHandlerTest.TestController.class,
+      GlobalExceptionHandler.class,
+      RequestIdFilter.class
+    })
 class GlobalExceptionHandlerTest {
-    @Autowired
-    private MockMvc mockMvc;
+  @Autowired private MockMvc mockMvc;
 
-    @Test
-    void returnsStableValidationError() throws Exception {
-        mockMvc.perform(post("/test").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.error.details[0].field").value("name"))
-                .andExpect(jsonPath("$.meta.requestId").isNotEmpty());
-    }
+  @Test
+  void returnsStableValidationError() throws Exception {
+    mockMvc
+        .perform(post("/test").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+        .andExpect(jsonPath("$.error.details[0].field").value("name"))
+        .andExpect(jsonPath("$.meta.requestId").isNotEmpty());
+  }
 
-    @RestController
-    static class TestController {
-        @PostMapping("/test")
-        void test(@Valid @RequestBody TestRequest request) {
-        }
-    }
+  @RestController
+  static class TestController {
+    @PostMapping("/test")
+    void test(@Valid @RequestBody TestRequest request) {}
+  }
 
-    record TestRequest(@NotBlank String name) {
-    }
+  record TestRequest(@NotBlank String name) {}
 }

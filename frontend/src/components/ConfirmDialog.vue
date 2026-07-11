@@ -1,2 +1,31 @@
-<script setup lang="ts">import { nextTick,ref } from 'vue';const dialog=ref<HTMLDialogElement>(),message=ref(''),resolve=ref<(value:boolean)=>void>();async function confirm(text:string){message.value=text;dialog.value?.showModal();await nextTick();(dialog.value?.querySelector('[data-confirm]') as HTMLElement|null)?.focus();return new Promise<boolean>(done=>resolve.value=done)}function close(result:boolean){dialog.value?.close();resolve.value?.(result);resolve.value=undefined}defineExpose({confirm})</script>
-<template><dialog ref="dialog" class="confirm-dialog" @cancel.prevent="close(false)"><h2>请确认</h2><p>{{message}}</p><div class="actions"><button class="secondary" @click="close(false)">取消</button><button data-confirm @click="close(true)">确认</button></div></dialog></template>
+<script setup lang="ts">
+import { nextTick, ref } from "vue";
+const dialog = ref<HTMLDialogElement>(),
+  message = ref(""),
+  resolve = ref<(value: boolean) => void>();
+async function confirm(text: string) {
+  message.value = text;
+  dialog.value?.showModal();
+  await nextTick();
+  (
+    dialog.value?.querySelector("[data-confirm]") as HTMLElement | null
+  )?.focus();
+  return new Promise<boolean>((done) => (resolve.value = done));
+}
+function close(result: boolean) {
+  dialog.value?.close();
+  resolve.value?.(result);
+  resolve.value = undefined;
+}
+defineExpose({ confirm });
+</script>
+<template>
+  <dialog ref="dialog" class="confirm-dialog" @cancel.prevent="close(false)">
+    <h2>请确认</h2>
+    <p>{{ message }}</p>
+    <div class="actions">
+      <button class="secondary" @click="close(false)">取消</button
+      ><button data-confirm @click="close(true)">确认</button>
+    </div>
+  </dialog>
+</template>

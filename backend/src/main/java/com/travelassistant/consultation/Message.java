@@ -1,3 +1,163 @@
 package com.travelassistant.consultation;
-import com.travelassistant.trip.TripVersion;import jakarta.persistence.*;import java.time.Instant;import java.util.UUID;
-@Entity @Table(name="messages") public class Message {@Id @Column(length=36)private String id;@ManyToOne(fetch=FetchType.LAZY,optional=false)@JoinColumn(name="conversation_id")private Conversation conversation;@Column(name="turn_id",length=36)private String turnId;@ManyToOne(fetch=FetchType.LAZY)@JoinColumn(name="trip_version_id")private TripVersion tripVersion;@Enumerated(EnumType.STRING)@Column(nullable=false,length=16)private MessageRole role;@Lob @Column(nullable=false,columnDefinition="mediumtext")private String content;@Enumerated(EnumType.STRING)@Column(nullable=false,length=16)private MessageStatus status;@Column(length=100)private String model;@Column(name="input_tokens")private Integer inputTokens;@Column(name="output_tokens")private Integer outputTokens;@Column(name="error_code",length=64)private String errorCode;@Column(name="created_at",nullable=false,updatable=false)private Instant createdAt;@Column(name="completed_at")private Instant completedAt;@Lob @Column(name="source_references",columnDefinition="json")private String sourceReferences;@Column(name="data_updated_at")private Instant dataUpdatedAt;protected Message(){}public Message(Conversation c,String turn,TripVersion version,MessageRole role,String content,MessageStatus status){conversation=c;turnId=turn;tripVersion=version;this.role=role;this.content=content;this.status=status;}@PrePersist void init(){if(id==null)id=UUID.randomUUID().toString();if(createdAt==null)createdAt=Instant.now();}public void sources(String json,Instant updatedAt){sourceReferences=json;dataUpdatedAt=updatedAt;}public void streaming(){if(status==MessageStatus.PENDING)status=MessageStatus.STREAMING;}public void complete(String answer,String model,Integer in,Integer out){if(status==MessageStatus.COMPLETED||status==MessageStatus.FAILED)return;content=answer;this.model=model;inputTokens=in;outputTokens=out;status=MessageStatus.COMPLETED;completedAt=Instant.now();}public void fail(String code){if(status==MessageStatus.COMPLETED||status==MessageStatus.FAILED)return;status=MessageStatus.FAILED;errorCode=code;completedAt=Instant.now();}public String getId(){return id;}public MessageRole getRole(){return role;}public String getContent(){return content;}public MessageStatus getStatus(){return status;}public String getModel(){return model;}public Integer getInputTokens(){return inputTokens;}public Integer getOutputTokens(){return outputTokens;}public String getErrorCode(){return errorCode;}public Instant getCreatedAt(){return createdAt;}public Instant getCompletedAt(){return completedAt;}public TripVersion getTripVersion(){return tripVersion;}public String getSourceReferences(){return sourceReferences;}public Instant getDataUpdatedAt(){return dataUpdatedAt;}}
+
+import com.travelassistant.trip.TripVersion;
+import jakarta.persistence.*;
+import java.time.Instant;
+import java.util.UUID;
+
+@Entity
+@Table(name = "messages")
+public class Message {
+  @Id
+  @Column(length = 36)
+  private String id;
+
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "conversation_id")
+  private Conversation conversation;
+
+  @Column(name = "turn_id", length = 36)
+  private String turnId;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "trip_version_id")
+  private TripVersion tripVersion;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 16)
+  private MessageRole role;
+
+  @Lob
+  @Column(nullable = false, columnDefinition = "mediumtext")
+  private String content;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 16)
+  private MessageStatus status;
+
+  @Column(length = 100)
+  private String model;
+
+  @Column(name = "input_tokens")
+  private Integer inputTokens;
+
+  @Column(name = "output_tokens")
+  private Integer outputTokens;
+
+  @Column(name = "error_code", length = 64)
+  private String errorCode;
+
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt;
+
+  @Column(name = "completed_at")
+  private Instant completedAt;
+
+  @Lob
+  @Column(name = "source_references", columnDefinition = "json")
+  private String sourceReferences;
+
+  @Column(name = "data_updated_at")
+  private Instant dataUpdatedAt;
+
+  protected Message() {}
+
+  public Message(
+      Conversation c,
+      String turn,
+      TripVersion version,
+      MessageRole role,
+      String content,
+      MessageStatus status) {
+    conversation = c;
+    turnId = turn;
+    tripVersion = version;
+    this.role = role;
+    this.content = content;
+    this.status = status;
+  }
+
+  @PrePersist
+  void init() {
+    if (id == null) id = UUID.randomUUID().toString();
+    if (createdAt == null) createdAt = Instant.now();
+  }
+
+  public void sources(String json, Instant updatedAt) {
+    sourceReferences = json;
+    dataUpdatedAt = updatedAt;
+  }
+
+  public void streaming() {
+    if (status == MessageStatus.PENDING) status = MessageStatus.STREAMING;
+  }
+
+  public void complete(String answer, String model, Integer in, Integer out) {
+    if (status == MessageStatus.COMPLETED || status == MessageStatus.FAILED) return;
+    content = answer;
+    this.model = model;
+    inputTokens = in;
+    outputTokens = out;
+    status = MessageStatus.COMPLETED;
+    completedAt = Instant.now();
+  }
+
+  public void fail(String code) {
+    if (status == MessageStatus.COMPLETED || status == MessageStatus.FAILED) return;
+    status = MessageStatus.FAILED;
+    errorCode = code;
+    completedAt = Instant.now();
+  }
+
+  public String getId() {
+    return id;
+  }
+
+  public MessageRole getRole() {
+    return role;
+  }
+
+  public String getContent() {
+    return content;
+  }
+
+  public MessageStatus getStatus() {
+    return status;
+  }
+
+  public String getModel() {
+    return model;
+  }
+
+  public Integer getInputTokens() {
+    return inputTokens;
+  }
+
+  public Integer getOutputTokens() {
+    return outputTokens;
+  }
+
+  public String getErrorCode() {
+    return errorCode;
+  }
+
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
+
+  public Instant getCompletedAt() {
+    return completedAt;
+  }
+
+  public TripVersion getTripVersion() {
+    return tripVersion;
+  }
+
+  public String getSourceReferences() {
+    return sourceReferences;
+  }
+
+  public Instant getDataUpdatedAt() {
+    return dataUpdatedAt;
+  }
+}

@@ -1,2 +1,74 @@
-package com.travelassistant.consultation;import com.travelassistant.consultation.api.ConsultationDtos.*;import com.travelassistant.realtime.api.RealtimeDtos.*;import java.util.*;import org.springframework.stereotype.Component;import tools.jackson.core.type.TypeReference;import tools.jackson.databind.ObjectMapper;
-@Component public class ConversationMapper{private final ObjectMapper json;public ConversationMapper(ObjectMapper json){this.json=json;}public MessageView message(Message m){List<DataSourceReference>sources=parse(m.getSourceReferences());Freshness freshness=sources.stream().anyMatch(x->x.freshness()==Freshness.STALE)?Freshness.STALE:sources.isEmpty()?null:Freshness.FRESH;return new MessageView(m.getId(),m.getRole(),m.getContent(),m.getStatus(),m.getTripVersion()==null?null:m.getTripVersion().getVersionNumber(),m.getModel(),new Usage(m.getInputTokens(),m.getOutputTokens()),m.getErrorCode(),m.getCreatedAt().toString(),m.getCompletedAt()==null?null:m.getCompletedAt().toString(),sources,m.getDataUpdatedAt()==null?null:m.getDataUpdatedAt().toString(),freshness);}private List<DataSourceReference>parse(String raw){if(raw==null||raw.isBlank())return List.of();try{for(int i=0;i<3;i++){var tree=json.readTree(raw);if(!tree.isString())break;raw=tree.asText();}return json.readValue(raw,new TypeReference<List<DataSourceReference>>(){});}catch(Exception e){return List.of();}}public ConversationView conversation(Conversation c,List<Message>messages){return new ConversationView(c.getId(),c.getTitle(),c.getTrip()==null?null:c.getTrip().getId(),c.getCreatedAt().toString(),c.getUpdatedAt().toString(),messages.stream().filter(m->m.getRole()!=MessageRole.SYSTEM).map(this::message).toList());}public ConversationSummary summary(Conversation c){return new ConversationSummary(c.getId(),c.getTitle(),c.getTrip()==null?null:c.getTrip().getId(),c.getUpdatedAt().toString());}}
+package com.travelassistant.consultation;
+
+import com.travelassistant.consultation.api.ConsultationDtos.*;
+import com.travelassistant.realtime.api.RealtimeDtos.*;
+import java.util.*;
+import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
+
+@Component
+public class ConversationMapper {
+  private final ObjectMapper json;
+
+  public ConversationMapper(ObjectMapper json) {
+    this.json = json;
+  }
+
+  public MessageView message(Message m) {
+    List<DataSourceReference> sources = parse(m.getSourceReferences());
+    Freshness freshness =
+        sources.stream().anyMatch(x -> x.freshness() == Freshness.STALE)
+            ? Freshness.STALE
+            : sources.isEmpty() ? null : Freshness.FRESH;
+    return new MessageView(
+        m.getId(),
+        m.getRole(),
+        m.getContent(),
+        m.getStatus(),
+        m.getTripVersion() == null ? null : m.getTripVersion().getVersionNumber(),
+        m.getModel(),
+        new Usage(m.getInputTokens(), m.getOutputTokens()),
+        m.getErrorCode(),
+        m.getCreatedAt().toString(),
+        m.getCompletedAt() == null ? null : m.getCompletedAt().toString(),
+        sources,
+        m.getDataUpdatedAt() == null ? null : m.getDataUpdatedAt().toString(),
+        freshness);
+  }
+
+  private List<DataSourceReference> parse(String raw) {
+    if (raw == null || raw.isBlank()) return List.of();
+    try {
+      for (int i = 0; i < 3; i++) {
+        var tree = json.readTree(raw);
+        if (!tree.isString()) break;
+        raw = tree.asText();
+      }
+      return json.readValue(raw, new TypeReference<List<DataSourceReference>>() {});
+    } catch (Exception e) {
+      return List.of();
+    }
+  }
+
+  public ConversationView conversation(Conversation c, List<Message> messages) {
+    return new ConversationView(
+        c.getId(),
+        c.getTitle(),
+        c.getTrip() == null ? null : c.getTrip().getId(),
+        c.getCreatedAt().toString(),
+        c.getUpdatedAt().toString(),
+        messages.stream()
+            .filter(m -> m.getRole() != MessageRole.SYSTEM)
+            .map(this::message)
+            .toList());
+  }
+
+  public ConversationSummary summary(Conversation c) {
+    return new ConversationSummary(
+        c.getId(),
+        c.getTitle(),
+        c.getTrip() == null ? null : c.getTrip().getId(),
+        c.getUpdatedAt().toString());
+  }
+}

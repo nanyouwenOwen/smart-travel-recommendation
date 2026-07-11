@@ -1,2 +1,64 @@
-package com.travelassistant.consultation;import jakarta.persistence.*;import java.time.Instant;import java.util.UUID;
-@Entity @Table(name="conversation_stream_events",uniqueConstraints=@UniqueConstraint(columnNames={"stream_id","sequence_number"}))public class ConversationStreamEvent{@Id @Column(length=36)private String id;@ManyToOne(fetch=FetchType.LAZY,optional=false)@JoinColumn(name="stream_id")private ConversationStream stream;@Column(name="sequence_number",nullable=false)private int sequence;@Enumerated(EnumType.STRING)@Column(name="event_type",nullable=false,length=16)private StreamEventType type;@Column(name="payload_json",nullable=false,columnDefinition="json")private String payload;@Column(name="created_at",nullable=false,updatable=false)private Instant createdAt;@Column(name="expires_at",nullable=false)private Instant expiresAt;protected ConversationStreamEvent(){}public ConversationStreamEvent(ConversationStream s,int seq,StreamEventType type,String payload,Instant expiry){stream=s;sequence=seq;this.type=type;this.payload=payload;expiresAt=expiry;}@PrePersist void init(){id=UUID.randomUUID().toString();createdAt=Instant.now();}public int getSequence(){return sequence;}public StreamEventType getType(){return type;}public String getPayload(){return payload;}}
+package com.travelassistant.consultation;
+
+import jakarta.persistence.*;
+import java.time.Instant;
+import java.util.UUID;
+
+@Entity
+@Table(
+    name = "conversation_stream_events",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"stream_id", "sequence_number"}))
+public class ConversationStreamEvent {
+  @Id
+  @Column(length = 36)
+  private String id;
+
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "stream_id")
+  private ConversationStream stream;
+
+  @Column(name = "sequence_number", nullable = false)
+  private int sequence;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "event_type", nullable = false, length = 16)
+  private StreamEventType type;
+
+  @Column(name = "payload_json", nullable = false, columnDefinition = "json")
+  private String payload;
+
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt;
+
+  @Column(name = "expires_at", nullable = false)
+  private Instant expiresAt;
+
+  protected ConversationStreamEvent() {}
+
+  public ConversationStreamEvent(
+      ConversationStream s, int seq, StreamEventType type, String payload, Instant expiry) {
+    stream = s;
+    sequence = seq;
+    this.type = type;
+    this.payload = payload;
+    expiresAt = expiry;
+  }
+
+  @PrePersist
+  void init() {
+    id = UUID.randomUUID().toString();
+    createdAt = Instant.now();
+  }
+
+  public int getSequence() {
+    return sequence;
+  }
+
+  public StreamEventType getType() {
+    return type;
+  }
+
+  public String getPayload() {
+    return payload;
+  }
+}

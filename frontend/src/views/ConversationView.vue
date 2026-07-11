@@ -1,2 +1,75 @@
-<script setup lang="ts">import { onBeforeUnmount,onMounted,ref } from 'vue';import { useRoute } from 'vue-router';import { useConversationStore } from '@/stores/conversations';import MessageList from '@/components/chat/MessageList.vue';import ViewState from '@/components/ViewState.vue';const route=useRoute(),store=useConversationStore(),id=String(route.params.conversationId),content=ref('');onMounted(async()=>{await store.load(id);await store.resume(id)});onBeforeUnmount(store.disconnect);async function send(){const text=content.value.trim();if(!text)return;content.value='';await store.send(text)}</script>
-<template><section class="chat-page"><ViewState :loading="store.loading&&!store.current" :error="store.error&&!store.current?store.error:''" :empty="!store.current" @retry="store.load(id)"><template v-if="store.current"><header class="chat-header"><div><RouterLink to="/conversations" class="back">← 所有会话</RouterLink><h1 tabindex="-1">{{store.current.title||'旅行咨询'}}</h1><p v-if="store.current.tripId" class="muted">已关联行程上下文</p></div><button v-if="store.streaming&&store.streamId" class="secondary" @click="store.cancel">停止回答</button></header><MessageList :messages="store.current.messages"/><p v-if="store.error" class="banner error" role="alert">{{store.error}}</p><div v-if="!store.current.messages.length" class="chat-empty"><p class="eyebrow">ASK ANYTHING</p><h2>想了解什么？</h2><p>可以问交通、餐饮、景点安排，也可以基于关联行程继续讨论。</p></div><form class="composer" @submit.prevent="send"><label class="sr-only" for="message">输入旅游问题</label><textarea id="message" v-model="content" maxlength="5000" rows="2" :disabled="store.streaming" placeholder="例如：第二天从岚山回祇园怎么安排更顺路？" @keydown.ctrl.enter="send"></textarea><button :disabled="store.streaming||!content.trim()">{{store.streaming?'回答中…':'发送'}}</button></form><p class="fine composer-note">AI 回答不是实时信息，价格、天气、营业与政策请从官方渠道核验。</p></template></ViewState></section></template>
+<script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
+import { useConversationStore } from "@/stores/conversations";
+import MessageList from "@/components/chat/MessageList.vue";
+import ViewState from "@/components/ViewState.vue";
+const route = useRoute(),
+  store = useConversationStore(),
+  id = String(route.params.conversationId),
+  content = ref("");
+onMounted(async () => {
+  await store.load(id);
+  await store.resume(id);
+});
+onBeforeUnmount(store.disconnect);
+async function send() {
+  const text = content.value.trim();
+  if (!text) return;
+  content.value = "";
+  await store.send(text);
+}
+</script>
+<template>
+  <section class="chat-page">
+    <ViewState
+      :loading="store.loading && !store.current"
+      :error="store.error && !store.current ? store.error : ''"
+      :empty="!store.current"
+      @retry="store.load(id)"
+      ><template v-if="store.current"
+        ><header class="chat-header">
+          <div>
+            <RouterLink to="/conversations" class="back">← 所有会话</RouterLink>
+            <h1 tabindex="-1">{{ store.current.title || "旅行咨询" }}</h1>
+            <p v-if="store.current.tripId" class="muted">已关联行程上下文</p>
+          </div>
+          <button
+            v-if="store.streaming && store.streamId"
+            class="secondary"
+            @click="store.cancel"
+          >
+            停止回答
+          </button>
+        </header>
+        <MessageList :messages="store.current.messages" />
+        <p v-if="store.error" class="banner error" role="alert">
+          {{ store.error }}
+        </p>
+        <div v-if="!store.current.messages.length" class="chat-empty">
+          <p class="eyebrow">ASK ANYTHING</p>
+          <h2>想了解什么？</h2>
+          <p>可以问交通、餐饮、景点安排，也可以基于关联行程继续讨论。</p>
+        </div>
+        <form class="composer" @submit.prevent="send">
+          <label class="sr-only" for="message">输入旅游问题</label
+          ><textarea
+            id="message"
+            v-model="content"
+            maxlength="5000"
+            rows="2"
+            :disabled="store.streaming"
+            placeholder="例如：第二天从岚山回祇园怎么安排更顺路？"
+            @keydown.ctrl.enter="send"
+          ></textarea
+          ><button :disabled="store.streaming || !content.trim()">
+            {{ store.streaming ? "回答中…" : "发送" }}
+          </button>
+        </form>
+        <p class="fine composer-note">
+          AI 回答不是实时信息，价格、天气、营业与政策请从官方渠道核验。
+        </p></template
+      ></ViewState
+    >
+  </section>
+</template>

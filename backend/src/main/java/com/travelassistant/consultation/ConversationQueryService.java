@@ -1,2 +1,98 @@
-package com.travelassistant.consultation;import com.travelassistant.common.exception.BusinessException;import com.travelassistant.common.web.SignedCursorCodec;import com.travelassistant.consultation.api.ConsultationDtos.*;import java.time.Instant;import java.util.*;import org.springframework.data.domain.PageRequest;import org.springframework.http.HttpStatus;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;
-@Service public class ConversationQueryService{private final ConversationRepository conversations;private final MessageRepository messages;private final ConversationMapper mapper;private final SignedCursorCodec cursors;public ConversationQueryService(ConversationRepository c,MessageRepository m,ConversationMapper map,SignedCursorCodec cursor){conversations=c;messages=m;mapper=map;cursors=cursor;}@Transactional(readOnly=true)public PageResult<ConversationSummary>list(String user,String cursor,int limit){int size=Math.min(Math.max(limit,1),100);List<Conversation>found;if(cursor==null||cursor.isBlank())found=conversations.findByUserIdOrderByUpdatedAtDescIdDesc(user,PageRequest.of(0,size+1)).getContent();else{Cursor c=parse(cursor);found=conversations.findAfter(user,c.time,c.id,PageRequest.of(0,size+1));}boolean more=found.size()>size;List<Conversation>selected=found.subList(0,Math.min(size,found.size()));return new PageResult<>(selected.stream().map(mapper::summary).toList(),more?encode(selected.getLast().getUpdatedAt(),selected.getLast().getId()):null,more);}@Transactional(readOnly=true)public PageResult<MessageView>messages(String user,String conversation,String cursor,int limit){conversations.findByIdAndUserId(conversation,user).orElseThrow(this::notFound);int size=Math.min(Math.max(limit,1),100);List<Message>all;if(cursor==null||cursor.isBlank())all=messages.findByConversationIdAndRoleNotOrderByCreatedAtAscIdAsc(conversation,MessageRole.SYSTEM).stream().limit(size+1L).toList();else{Cursor c=parse(cursor);all=messages.findAfter(conversation,c.time,c.id,PageRequest.of(0,size+1));}boolean more=all.size()>size;List<Message>selected=all.subList(0,Math.min(size,all.size()));return new PageResult<>(selected.stream().map(mapper::message).toList(),more?encode(selected.getLast().getCreatedAt(),selected.getLast().getId()):null,more);}private String encode(Instant time,String id){return cursors.encode(time+"|"+id);}private Cursor parse(String token){try{String[]p=cursors.decode(token).split("\\|",2);return new Cursor(Instant.parse(p[0]),p[1]);}catch(BusinessException e){throw e;}catch(Exception e){throw new BusinessException("VALIDATION_ERROR","cursor 无效",HttpStatus.BAD_REQUEST);}}private BusinessException notFound(){return new BusinessException("CONVERSATION_NOT_FOUND","会话不存在",HttpStatus.NOT_FOUND);}private record Cursor(Instant time,String id){}}
+package com.travelassistant.consultation;
+
+import com.travelassistant.common.exception.BusinessException;
+import com.travelassistant.common.web.SignedCursorCodec;
+import com.travelassistant.consultation.api.ConsultationDtos.*;
+import java.time.Instant;
+import java.util.*;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class ConversationQueryService {
+  private final ConversationRepository conversations;
+  private final MessageRepository messages;
+  private final ConversationMapper mapper;
+  private final SignedCursorCodec cursors;
+
+  public ConversationQueryService(
+      ConversationRepository c,
+      MessageRepository m,
+      ConversationMapper map,
+      SignedCursorCodec cursor) {
+    conversations = c;
+    messages = m;
+    mapper = map;
+    cursors = cursor;
+  }
+
+  @Transactional(readOnly = true)
+  public PageResult<ConversationSummary> list(String user, String cursor, int limit) {
+    int size = Math.min(Math.max(limit, 1), 100);
+    List<Conversation> found;
+    if (cursor == null || cursor.isBlank())
+      found =
+          conversations
+              .findByUserIdOrderByUpdatedAtDescIdDesc(user, PageRequest.of(0, size + 1))
+              .getContent();
+    else {
+      Cursor c = parse(cursor);
+      found = conversations.findAfter(user, c.time, c.id, PageRequest.of(0, size + 1));
+    }
+    boolean more = found.size() > size;
+    List<Conversation> selected = found.subList(0, Math.min(size, found.size()));
+    return new PageResult<>(
+        selected.stream().map(mapper::summary).toList(),
+        more ? encode(selected.getLast().getUpdatedAt(), selected.getLast().getId()) : null,
+        more);
+  }
+
+  @Transactional(readOnly = true)
+  public PageResult<MessageView> messages(
+      String user, String conversation, String cursor, int limit) {
+    conversations.findByIdAndUserId(conversation, user).orElseThrow(this::notFound);
+    int size = Math.min(Math.max(limit, 1), 100);
+    List<Message> all;
+    if (cursor == null || cursor.isBlank())
+      all =
+          messages
+              .findByConversationIdAndRoleNotOrderByCreatedAtAscIdAsc(
+                  conversation, MessageRole.SYSTEM)
+              .stream()
+              .limit(size + 1L)
+              .toList();
+    else {
+      Cursor c = parse(cursor);
+      all = messages.findAfter(conversation, c.time, c.id, PageRequest.of(0, size + 1));
+    }
+    boolean more = all.size() > size;
+    List<Message> selected = all.subList(0, Math.min(size, all.size()));
+    return new PageResult<>(
+        selected.stream().map(mapper::message).toList(),
+        more ? encode(selected.getLast().getCreatedAt(), selected.getLast().getId()) : null,
+        more);
+  }
+
+  private String encode(Instant time, String id) {
+    return cursors.encode(time + "|" + id);
+  }
+
+  private Cursor parse(String token) {
+    try {
+      String[] p = cursors.decode(token).split("\\|", 2);
+      return new Cursor(Instant.parse(p[0]), p[1]);
+    } catch (BusinessException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new BusinessException("VALIDATION_ERROR", "cursor 无效", HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  private BusinessException notFound() {
+    return new BusinessException("CONVERSATION_NOT_FOUND", "会话不存在", HttpStatus.NOT_FOUND);
+  }
+
+  private record Cursor(Instant time, String id) {}
+}

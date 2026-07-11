@@ -1,2 +1,74 @@
-<script setup lang="ts">import { ref } from 'vue'; import { useRoute,useRouter } from 'vue-router'; import { useAuthStore } from '@/stores/auth';import { ApiError } from '@/api/client'; const email=ref(''),password=ref(''),error=ref(''),fields=ref<Record<string,string>>({}),busy=ref(false),auth=useAuthStore(),route=useRoute(),router=useRouter(); async function submit(){busy.value=true;error.value='';fields.value={};try{await auth.login(email.value,password.value);const target=typeof route.query.redirect==='string'&&route.query.redirect.startsWith('/')&&!route.query.redirect.startsWith('//')?route.query.redirect:'/trips';await router.push(target)}catch(e){error.value=e instanceof Error?e.message:'登录失败';if(e instanceof ApiError)fields.value=Object.fromEntries((e.details??[]).filter(x=>x.field&&x.reason).map(x=>[x.field!,x.reason!]))}finally{busy.value=false}}</script>
-<template><main class="auth-page"><RouterLink class="brand" to="/">旅途智囊</RouterLink><form class="auth-card" @submit.prevent="submit"><p class="eyebrow">WELCOME BACK</p><h1 tabindex="-1">登录</h1><p class="muted">继续规划你的下一段旅程。</p><label>邮箱<input v-model.trim="email" type="email" autocomplete="email" :aria-invalid="!!fields.email" required maxlength="254"><small v-if="fields.email" class="form-error">{{fields.email}}</small></label><label>密码<input v-model="password" type="password" autocomplete="current-password" :aria-invalid="!!fields.password" required><small v-if="fields.password" class="form-error">{{fields.password}}</small></label><p v-if="error" class="form-error" role="alert">{{error}}</p><button :disabled="busy">{{busy?'登录中…':'登录'}}</button><p>还没有账户？<RouterLink to="/register">立即注册</RouterLink></p></form></main></template>
+<script setup lang="ts">
+import { ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
+import { ApiError } from "@/api/client";
+const email = ref(""),
+  password = ref(""),
+  error = ref(""),
+  fields = ref<Record<string, string>>({}),
+  busy = ref(false),
+  auth = useAuthStore(),
+  route = useRoute(),
+  router = useRouter();
+async function submit() {
+  busy.value = true;
+  error.value = "";
+  fields.value = {};
+  try {
+    await auth.login(email.value, password.value);
+    const target =
+      typeof route.query.redirect === "string" &&
+      route.query.redirect.startsWith("/") &&
+      !route.query.redirect.startsWith("//")
+        ? route.query.redirect
+        : "/trips";
+    await router.push(target);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "登录失败";
+    if (e instanceof ApiError)
+      fields.value = Object.fromEntries(
+        (e.details ?? [])
+          .filter((x) => x.field && x.reason)
+          .map((x) => [x.field!, x.reason!]),
+      );
+  } finally {
+    busy.value = false;
+  }
+}
+</script>
+<template>
+  <main class="auth-page">
+    <RouterLink class="brand" to="/">旅途智囊</RouterLink>
+    <form class="auth-card" @submit.prevent="submit">
+      <p class="eyebrow">WELCOME BACK</p>
+      <h1 tabindex="-1">登录</h1>
+      <p class="muted">继续规划你的下一段旅程。</p>
+      <label
+        >邮箱<input
+          v-model.trim="email"
+          type="email"
+          autocomplete="email"
+          :aria-invalid="!!fields.email"
+          required
+          maxlength="254"
+        /><small v-if="fields.email" class="form-error">{{
+          fields.email
+        }}</small></label
+      ><label
+        >密码<input
+          v-model="password"
+          type="password"
+          autocomplete="current-password"
+          :aria-invalid="!!fields.password"
+          required
+        /><small v-if="fields.password" class="form-error">{{
+          fields.password
+        }}</small></label
+      >
+      <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+      <button :disabled="busy">{{ busy ? "登录中…" : "登录" }}</button>
+      <p>还没有账户？<RouterLink to="/register">立即注册</RouterLink></p>
+    </form>
+  </main>
+</template>

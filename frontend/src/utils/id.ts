@@ -1,1 +1,1 @@
-export const requestKey = (): string => crypto.randomUUID()
+export const requestKey = (): string => crypto.randomUUID();

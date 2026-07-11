@@ -1,2 +1,7 @@
 package com.travelassistant.trip;
-public enum GenerationType { INITIAL, REPLAN, ADJUSTMENT }
+
+public enum GenerationType {
+  INITIAL,
+  REPLAN,
+  ADJUSTMENT
+}

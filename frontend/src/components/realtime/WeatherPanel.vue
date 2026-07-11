@@ -1,2 +1,42 @@
-<script setup lang="ts">import type { WeatherSnapshot } from '@/api/types';import SourceList from './SourceList.vue';defineProps<{snapshot:WeatherSnapshot}>();const temp=(n:number)=>`${Math.round(n)}°`;const weather=(code:number)=>code===0?'晴':code<4?'多云':code<50?'雾':code<70?'雨':code<80?'雪':code<90?'阵雨':'雷雨'</script>
-<template><section class="panel realtime-panel"><h2>行程天气</h2><p v-if="snapshot.warning" class="banner warning">{{snapshot.warning}}</p><div v-if="snapshot.days.length" class="weather-grid"><article v-for="day in snapshot.days" :key="day.date"><time>{{day.date}}</time><strong>{{weather(day.weatherCode)}}</strong><span>{{temp(day.temperatureMin)}} – {{temp(day.temperatureMax)}}</span><small v-if="day.precipitationProbability!=null">降水概率 {{day.precipitationProbability}}%</small></article></div><p v-else class="muted">行程日期暂无可用预报。</p><p v-if="snapshot.unavailableDates.length" class="fine">超出预报范围：{{snapshot.unavailableDates.join('、')}}</p><SourceList :sources="snapshot.sources"/></section></template>
+<script setup lang="ts">
+import type { WeatherSnapshot } from "@/api/types";
+import SourceList from "./SourceList.vue";
+defineProps<{ snapshot: WeatherSnapshot }>();
+const temp = (n: number) => `${Math.round(n)}°`;
+const weather = (code: number) =>
+  code === 0
+    ? "晴"
+    : code < 4
+      ? "多云"
+      : code < 50
+        ? "雾"
+        : code < 70
+          ? "雨"
+          : code < 80
+            ? "雪"
+            : code < 90
+              ? "阵雨"
+              : "雷雨";
+</script>
+<template>
+  <section class="panel realtime-panel">
+    <h2>行程天气</h2>
+    <p v-if="snapshot.warning" class="banner warning">{{ snapshot.warning }}</p>
+    <div v-if="snapshot.days.length" class="weather-grid">
+      <article v-for="day in snapshot.days" :key="day.date">
+        <time>{{ day.date }}</time
+        ><strong>{{ weather(day.weatherCode) }}</strong
+        ><span
+          >{{ temp(day.temperatureMin) }} – {{ temp(day.temperatureMax) }}</span
+        ><small v-if="day.precipitationProbability != null"
+          >降水概率 {{ day.precipitationProbability }}%</small
+        >
+      </article>
+    </div>
+    <p v-else class="muted">行程日期暂无可用预报。</p>
+    <p v-if="snapshot.unavailableDates.length" class="fine">
+      超出预报范围：{{ snapshot.unavailableDates.join("、") }}
+    </p>
+    <SourceList :sources="snapshot.sources" />
+  </section>
+</template>

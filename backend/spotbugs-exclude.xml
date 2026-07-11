@@ -1,0 +1,4 @@
+<FindBugsFilter>
+  <!-- JPA requires mutable entities and protected no-arg constructors. -->
+  <Match><Annotation name="jakarta.persistence.Entity"/></Match>
+</FindBugsFilter>

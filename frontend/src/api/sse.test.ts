@@ -1,3 +1,41 @@
-import { describe,expect,it } from 'vitest'; import { parseSse } from './sse'
-function stream(parts:(string|Uint8Array)[]){return new ReadableStream<Uint8Array>({start(controller){for(const part of parts)controller.enqueue(typeof part==='string'?new TextEncoder().encode(part):part);controller.close()}})}
-describe('SSE parser',()=>{it('handles arbitrary UTF-8 byte chunks, CRLF, comments and multiline data',async()=>{const frames:unknown[]=[];const bytes=new TextEncoder().encode('id: 1\r\nevent: delta\r\ndata: {"content":"你好"}\r\n\r\n: ping\n\nid: 2\nevent: done\ndata: first\ndata: second\n\n');const marker=bytes.findIndex((x,i)=>x===0xe4&&bytes[i+1]===0xbd);await parseSse(stream([bytes.slice(0,marker+1),bytes.slice(marker+1,marker+2),bytes.slice(marker+2)]),x=>frames.push(x));expect(frames).toEqual([{id:'1',event:'delta',data:'{"content":"你好"}'},{id:'2',event:'done',data:'first\nsecond'}])});it('ignores comment-only events',async()=>{const frames:unknown[]=[];await parseSse(stream([': ping\n\n']),x=>frames.push(x));expect(frames).toEqual([])})})
+import { describe, expect, it } from "vitest";
+import { parseSse } from "./sse";
+function stream(parts: (string | Uint8Array)[]) {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const part of parts)
+        controller.enqueue(
+          typeof part === "string" ? new TextEncoder().encode(part) : part,
+        );
+      controller.close();
+    },
+  });
+}
+describe("SSE parser", () => {
+  it("handles arbitrary UTF-8 byte chunks, CRLF, comments and multiline data", async () => {
+    const frames: unknown[] = [];
+    const bytes = new TextEncoder().encode(
+      'id: 1\r\nevent: delta\r\ndata: {"content":"你好"}\r\n\r\n: ping\n\nid: 2\nevent: done\ndata: first\ndata: second\n\n',
+    );
+    const marker = bytes.findIndex(
+      (x, i) => x === 0xe4 && bytes[i + 1] === 0xbd,
+    );
+    await parseSse(
+      stream([
+        bytes.slice(0, marker + 1),
+        bytes.slice(marker + 1, marker + 2),
+        bytes.slice(marker + 2),
+      ]),
+      (x) => frames.push(x),
+    );
+    expect(frames).toEqual([
+      { id: "1", event: "delta", data: '{"content":"你好"}' },
+      { id: "2", event: "done", data: "first\nsecond" },
+    ]);
+  });
+  it("ignores comment-only events", async () => {
+    const frames: unknown[] = [];
+    await parseSse(stream([": ping\n\n"]), (x) => frames.push(x));
+    expect(frames).toEqual([]);
+  });
+});

@@ -10,9 +10,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, String> {
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select token from RefreshToken token join fetch token.user where token.tokenHash = :hash")
-    Optional<RefreshToken> findByTokenHash(@Param("hash") String tokenHash);
-    List<RefreshToken> findByFamilyIdAndRevokedAtIsNull(String familyId);
-    long deleteByExpiresAtBefore(Instant cutoff);
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select token from RefreshToken token join fetch token.user where token.tokenHash = :hash")
+  Optional<RefreshToken> findByTokenHash(@Param("hash") String tokenHash);
+
+  List<RefreshToken> findByFamilyIdAndRevokedAtIsNull(String familyId);
+
+  long deleteByExpiresAtBefore(Instant cutoff);
 }

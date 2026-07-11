@@ -1,4 +1,115 @@
-import { beforeEach,describe,expect,it,vi } from 'vitest';import { createPinia,setActivePinia } from 'pinia';import { useConversationStore } from './conversations';import { conversationApi } from '@/api/conversations';import { consumeStream } from '@/api/sse'
-vi.mock('@/api/conversations',()=>({conversationApi:{list:vi.fn(),create:vi.fn(),get:vi.fn(),messages:vi.fn(),cancel:vi.fn()}}));vi.mock('@/api/sse',()=>({consumeStream:vi.fn()}));vi.mock('@/utils/id',()=>({requestKey:vi.fn(()=>crypto.randomUUID())}))
-const view=(id:string)=>({id,title:id,createdAt:'now',updatedAt:'now',messages:[]})
-describe('stream lifecycle isolation',()=>{beforeEach(()=>{setActivePinia(createPinia());vi.clearAllMocks();vi.useRealTimers();Object.defineProperty(document,'visibilityState',{value:'visible',configurable:true})});it('allows conversation B to send after disconnecting recoverable stream A',async()=>{vi.mocked(conversationApi.get).mockImplementation(async id=>view(id));vi.mocked(consumeStream).mockImplementationOnce(async(_p,_i,on,open)=>{open?.(new Response(null,{headers:{'X-Stream-Id':'s1'}}));on({id:1,type:'ack',data:{streamId:'s1',userMessageId:'u1',assistantMessageId:'a1',eventId:1}});await new Promise(()=>{})}).mockImplementationOnce(async(_p,_i,on)=>{on({id:1,type:'ack',data:{streamId:'s2',userMessageId:'u2',assistantMessageId:'a2',eventId:1}});on({id:2,type:'done',data:{streamId:'s2',messageId:'a2',status:'COMPLETED',usage:{},replayed:false}})});const store=useConversationStore();await store.load('A');void store.send('A问题');await vi.waitFor(()=>expect(store.streamId).toBe('s1'));store.disconnect();await store.load('B');expect(store.streaming).toBe(false);await store.send('B问题');expect(consumeStream).toHaveBeenCalledTimes(2)});it('honors the hard reconnect deadline while the page remains hidden',async()=>{vi.useFakeTimers();Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});vi.mocked(conversationApi.get).mockResolvedValue(view('A'));vi.mocked(consumeStream).mockImplementationOnce(async(_p,_i,on,open)=>{open?.(new Response(null,{headers:{'X-Stream-Id':'s1'}}));on({id:1,type:'ack',data:{streamId:'s1',userMessageId:'u1',assistantMessageId:'a1',eventId:1}});throw new Error('offline')});const store=useConversationStore();await store.load('A');const sending=store.send('问题');await vi.advanceTimersByTimeAsync(30_000);await sending;expect(consumeStream).toHaveBeenCalledOnce();expect(store.streaming).toBe(false)})})
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createPinia, setActivePinia } from "pinia";
+import { useConversationStore } from "./conversations";
+import { conversationApi } from "@/api/conversations";
+import { consumeStream } from "@/api/sse";
+vi.mock("@/api/conversations", () => ({
+  conversationApi: {
+    list: vi.fn(),
+    create: vi.fn(),
+    get: vi.fn(),
+    messages: vi.fn(),
+    cancel: vi.fn(),
+  },
+}));
+vi.mock("@/api/sse", () => ({ consumeStream: vi.fn() }));
+vi.mock("@/utils/id", () => ({ requestKey: vi.fn(() => crypto.randomUUID()) }));
+const view = (id: string) => ({
+  id,
+  title: id,
+  createdAt: "now",
+  updatedAt: "now",
+  messages: [],
+});
+describe("stream lifecycle isolation", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+  });
+  it("allows conversation B to send after disconnecting recoverable stream A", async () => {
+    vi.mocked(conversationApi.get).mockImplementation(async (id) => view(id));
+    vi.mocked(consumeStream)
+      .mockImplementationOnce(async (_p, _i, on, open) => {
+        open?.(new Response(null, { headers: { "X-Stream-Id": "s1" } }));
+        on({
+          id: 1,
+          type: "ack",
+          data: {
+            streamId: "s1",
+            userMessageId: "u1",
+            assistantMessageId: "a1",
+            eventId: 1,
+          },
+        });
+        await new Promise(() => {});
+      })
+      .mockImplementationOnce(async (_p, _i, on) => {
+        on({
+          id: 1,
+          type: "ack",
+          data: {
+            streamId: "s2",
+            userMessageId: "u2",
+            assistantMessageId: "a2",
+            eventId: 1,
+          },
+        });
+        on({
+          id: 2,
+          type: "done",
+          data: {
+            streamId: "s2",
+            messageId: "a2",
+            status: "COMPLETED",
+            usage: {},
+            replayed: false,
+          },
+        });
+      });
+    const store = useConversationStore();
+    await store.load("A");
+    void store.send("A问题");
+    await vi.waitFor(() => expect(store.streamId).toBe("s1"));
+    store.disconnect();
+    await store.load("B");
+    expect(store.streaming).toBe(false);
+    await store.send("B问题");
+    expect(consumeStream).toHaveBeenCalledTimes(2);
+  });
+  it("honors the hard reconnect deadline while the page remains hidden", async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, "visibilityState", {
+      value: "hidden",
+      configurable: true,
+    });
+    vi.mocked(conversationApi.get).mockResolvedValue(view("A"));
+    vi.mocked(consumeStream).mockImplementationOnce(
+      async (_p, _i, on, open) => {
+        open?.(new Response(null, { headers: { "X-Stream-Id": "s1" } }));
+        on({
+          id: 1,
+          type: "ack",
+          data: {
+            streamId: "s1",
+            userMessageId: "u1",
+            assistantMessageId: "a1",
+            eventId: 1,
+          },
+        });
+        throw new Error("offline");
+      },
+    );
+    const store = useConversationStore();
+    await store.load("A");
+    const sending = store.send("问题");
+    await vi.advanceTimersByTimeAsync(30_000);
+    await sending;
+    expect(consumeStream).toHaveBeenCalledOnce();
+    expect(store.streaming).toBe(false);
+  });
+});

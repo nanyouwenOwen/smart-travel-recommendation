@@ -1,13 +1,67 @@
-.mobile-header { display: none; }
-.nav-toggle { color: var(--green); background: #e7f0ed; }
-.confirm-dialog { max-width: min(90vw, 430px); border: 0; border-radius: 18px; padding: 2rem; color: var(--ink); background: var(--paper); box-shadow: var(--shadow); }
-.confirm-dialog::backdrop { background: rgb(5 25 22 / 55%); }
-.postcard { background: radial-gradient(circle at 72% 18%, rgb(255 255 255 / 38%) 0 7%, transparent 8%), linear-gradient(145deg, #87ad96 0 32%, #466f61 33% 62%, #183f38 63%); }
+.mobile-header {
+  display: none;
+}
+.nav-toggle {
+  color: var(--green);
+  background: #e7f0ed;
+}
+.confirm-dialog {
+  max-width: min(90vw, 430px);
+  border: 0;
+  border-radius: 18px;
+  padding: 2rem;
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+.confirm-dialog::backdrop {
+  background: rgb(5 25 22 / 55%);
+}
+.postcard {
+  background:
+    radial-gradient(
+      circle at 72% 18%,
+      rgb(255 255 255 / 38%) 0 7%,
+      transparent 8%
+    ),
+    linear-gradient(145deg, #87ad96 0 32%, #466f61 33% 62%, #183f38 63%);
+}
 @media (max-width: 900px) {
-  .mobile-header { display: flex; position: sticky; top: 0; z-index: 20; align-items: center; justify-content: space-between; padding: .7rem 1rem; background: var(--paper); border-bottom: 1px solid var(--line); }
-  .sidebar { display: none; position: fixed; inset: 69px 0 auto; z-index: 19; height: auto; max-height: calc(100vh - 69px); padding: 1rem; flex-direction: column; align-items: stretch; overflow: auto; box-shadow: var(--shadow); }
-  .sidebar.open { display: flex; }
-  .sidebar > .brand { display: none; }
-  .sidebar nav { display: grid; }
-  .sidebar .user { margin: 1rem 0 0; border-top: 1px solid rgb(255 255 255 / 18%); }
+  .mobile-header {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 1rem;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+  }
+  .sidebar {
+    display: none;
+    position: fixed;
+    inset: 69px 0 auto;
+    z-index: 19;
+    height: auto;
+    max-height: calc(100vh - 69px);
+    padding: 1rem;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: auto;
+    box-shadow: var(--shadow);
+  }
+  .sidebar.open {
+    display: flex;
+  }
+  .sidebar > .brand {
+    display: none;
+  }
+  .sidebar nav {
+    display: grid;
+  }
+  .sidebar .user {
+    margin: 1rem 0 0;
+    border-top: 1px solid rgb(255 255 255 / 18%);
+  }
 }

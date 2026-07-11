@@ -1,4 +1,36 @@
 package com.travelassistant.trip;
-import com.travelassistant.common.exception.BusinessException; import java.util.concurrent.Semaphore; import org.springframework.beans.factory.annotation.Value; import org.springframework.http.HttpStatus; import org.springframework.stereotype.Component; import org.springframework.transaction.support.*;
-@Component public class TripDispatchCapacity {private final Semaphore permits;public TripDispatchCapacity(@Value("${app.trip-planning.executor.max-size:4}")int max,@Value("${app.trip-planning.executor.queue-capacity:50}")int queue){permits=new Semaphore(max+queue);}
- public void reserveForCurrentTransaction(){if(!permits.tryAcquire())throw new BusinessException("GENERATION_QUEUE_FULL","行程生成队列已满",HttpStatus.SERVICE_UNAVAILABLE);TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){@Override public void afterCompletion(int status){if(status!=STATUS_COMMITTED)release();}});}public void release(){permits.release();}}
+
+import com.travelassistant.common.exception.BusinessException;
+import java.util.concurrent.Semaphore;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.*;
+
+@Component
+public class TripDispatchCapacity {
+  private final Semaphore permits;
+
+  public TripDispatchCapacity(
+      @Value("${app.trip-planning.executor.max-size:4}") int max,
+      @Value("${app.trip-planning.executor.queue-capacity:50}") int queue) {
+    permits = new Semaphore(max + queue);
+  }
+
+  public void reserveForCurrentTransaction() {
+    if (!permits.tryAcquire())
+      throw new BusinessException(
+          "GENERATION_QUEUE_FULL", "行程生成队列已满", HttpStatus.SERVICE_UNAVAILABLE);
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCompletion(int status) {
+            if (status != STATUS_COMMITTED) release();
+          }
+        });
+  }
+
+  public void release() {
+    permits.release();
+  }
+}

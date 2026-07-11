@@ -12,15 +12,24 @@ import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class SecurityErrorWriter {
-    private final ObjectMapper objectMapper;
-    public SecurityErrorWriter(ObjectMapper objectMapper) { this.objectMapper = objectMapper; }
+  private final ObjectMapper objectMapper;
 
-    public void write(HttpServletRequest request, HttpServletResponse response, int status,
-                      String code, String message) throws IOException {
-        response.setStatus(status);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-        String requestId = (String) request.getAttribute(RequestIdFilter.ATTRIBUTE);
-        objectMapper.writeValue(response.getOutputStream(), ApiErrorResponse.of(new ApiError(code, message), requestId));
-    }
+  public SecurityErrorWriter(ObjectMapper objectMapper) {
+    this.objectMapper = objectMapper;
+  }
+
+  public void write(
+      HttpServletRequest request,
+      HttpServletResponse response,
+      int status,
+      String code,
+      String message)
+      throws IOException {
+    response.setStatus(status);
+    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    response.setCharacterEncoding("UTF-8");
+    String requestId = (String) request.getAttribute(RequestIdFilter.ATTRIBUTE);
+    objectMapper.writeValue(
+        response.getOutputStream(), ApiErrorResponse.of(new ApiError(code, message), requestId));
+  }
 }

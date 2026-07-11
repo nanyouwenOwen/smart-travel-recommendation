@@ -13,28 +13,25 @@ import org.springframework.transaction.annotation.Transactional;
 @ActiveProfiles("test")
 @Transactional
 class UserRepositoryTest {
-    @Autowired
-    private UserRepository userRepository;
+  @Autowired private UserRepository userRepository;
 
-    @Autowired
-    private EntityManager entityManager;
+  @Autowired private EntityManager entityManager;
 
-    @Test
-    void auditsAndFiltersSoftDeletedUsers() {
-        User user = userRepository.saveAndFlush(
-                new User("traveler@example.com", "encoded-password", "旅行者"));
+  @Test
+  void auditsAndFiltersSoftDeletedUsers() {
+    User user =
+        userRepository.saveAndFlush(new User("traveler@example.com", "encoded-password", "旅行者"));
 
-        assertThat(user.getId()).isNotBlank();
-        assertThat(user.getCreatedAt()).isNotNull();
-        assertThat(user.getUpdatedAt()).isNotNull();
-        assertThat(userRepository.findByEmailIgnoreCase("TRAVELER@example.com")).contains(user);
+    assertThat(user.getId()).isNotBlank();
+    assertThat(user.getCreatedAt()).isNotNull();
+    assertThat(user.getUpdatedAt()).isNotNull();
+    assertThat(userRepository.findByEmailIgnoreCase("TRAVELER@example.com")).contains(user);
 
-        user.softDelete();
-        userRepository.saveAndFlush(user);
-        entityManager.clear();
+    user.softDelete();
+    userRepository.saveAndFlush(user);
+    entityManager.clear();
 
-        assertThat(userRepository.findById(user.getId())).isEmpty();
-        assertThat(userRepository.findByEmailIgnoreCase("traveler@example.com")).isEmpty();
-    }
+    assertThat(userRepository.findById(user.getId())).isEmpty();
+    assertThat(userRepository.findByEmailIgnoreCase("traveler@example.com")).isEmpty();
+  }
 }
-

@@ -1,2 +1,87 @@
-package com.travelassistant.consultation;import com.travelassistant.consultation.security.PrivacyRedactor;import com.travelassistant.trip.*;import java.util.*;import org.springframework.stereotype.Component;import tools.jackson.databind.ObjectMapper;
-@Component public class TripContextSnapshotMapper{private final ObjectMapper mapper;private final PrivacyRedactor privacy;public TripContextSnapshotMapper(ObjectMapper m,PrivacyRedactor p){mapper=m;privacy=p;}public String map(TripVersion version){if(version==null)return"{}";Map<String,Object>root=new LinkedHashMap<>();root.put("type","trip_version_context_data");root.put("versionNumber",version.getVersionNumber());root.put("budget",version.getBudgetAmount()+" "+version.getCurrency());root.put("estimatedTotal",version.getEstimatedTotal()+" "+version.getCurrency());root.put("warnings",strings(version.getWarningsJson()));root.put("itinerary",version.getItineraryDays().stream().map(day->Map.of("dayNumber",day.getDayNumber(),"date",day.getDate().toString(),"summary",safe(day.getSummary()),"activities",day.getActivities().stream().map(a->Map.of("startTime",a.getStartTime().toString(),"endTime",a.getEndTime().toString(),"title",safe(a.getTitle()),"location",safe(a.getLocation()),"description",safe(a.getDescription()),"cost",a.getEstimatedCost()+" "+a.getCurrency(),"category",a.getCategory().name(),"transportAdvice",safe(a.getTransportAdvice()))).toList())).toList());try{return mapper.writeValueAsString(root);}catch(Exception e){throw new IllegalStateException(e);}}private String safe(String v){return privacy.redact(v==null?"":v).content();}private List<String>strings(String json){try{String value=json;for(int i=0;i<3;i++){var n=mapper.readTree(value);if(!n.isString())break;value=n.asText();}return mapper.readValue(value,mapper.getTypeFactory().constructCollectionType(List.class,String.class));}catch(Exception e){return List.of();}}}
+package com.travelassistant.consultation;
+
+import com.travelassistant.consultation.security.PrivacyRedactor;
+import com.travelassistant.trip.*;
+import java.util.*;
+import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
+
+@Component
+public class TripContextSnapshotMapper {
+  private final ObjectMapper mapper;
+  private final PrivacyRedactor privacy;
+
+  public TripContextSnapshotMapper(ObjectMapper m, PrivacyRedactor p) {
+    mapper = m;
+    privacy = p;
+  }
+
+  public String map(TripVersion version) {
+    if (version == null) return "{}";
+    Map<String, Object> root = new LinkedHashMap<>();
+    root.put("type", "trip_version_context_data");
+    root.put("versionNumber", version.getVersionNumber());
+    root.put("budget", version.getBudgetAmount() + " " + version.getCurrency());
+    root.put("estimatedTotal", version.getEstimatedTotal() + " " + version.getCurrency());
+    root.put("warnings", strings(version.getWarningsJson()));
+    root.put(
+        "itinerary",
+        version.getItineraryDays().stream()
+            .map(
+                day ->
+                    Map.of(
+                        "dayNumber",
+                        day.getDayNumber(),
+                        "date",
+                        day.getDate().toString(),
+                        "summary",
+                        safe(day.getSummary()),
+                        "activities",
+                        day.getActivities().stream()
+                            .map(
+                                a ->
+                                    Map.of(
+                                        "startTime",
+                                        a.getStartTime().toString(),
+                                        "endTime",
+                                        a.getEndTime().toString(),
+                                        "title",
+                                        safe(a.getTitle()),
+                                        "location",
+                                        safe(a.getLocation()),
+                                        "description",
+                                        safe(a.getDescription()),
+                                        "cost",
+                                        a.getEstimatedCost() + " " + a.getCurrency(),
+                                        "category",
+                                        a.getCategory().name(),
+                                        "transportAdvice",
+                                        safe(a.getTransportAdvice())))
+                            .toList()))
+            .toList());
+    try {
+      return mapper.writeValueAsString(root);
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private String safe(String v) {
+    return privacy.redact(v == null ? "" : v).content();
+  }
+
+  private List<String> strings(String json) {
+    try {
+      String value = json;
+      for (int i = 0; i < 3; i++) {
+        var n = mapper.readTree(value);
+        if (!n.isString()) break;
+        value = n.asText();
+      }
+      return mapper.readValue(
+          value, mapper.getTypeFactory().constructCollectionType(List.class, String.class));
+    } catch (Exception e) {
+      return List.of();
+    }
+  }
+}

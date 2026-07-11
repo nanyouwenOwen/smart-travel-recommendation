@@ -25,7 +25,7 @@
     "8080": {
       "label": "智能旅游助手 API",
       "onAutoForward": "notify",
-      "visibility": "public"
+      "visibility": "private"
     }
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",

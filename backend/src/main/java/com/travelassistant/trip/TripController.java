@@ -1,6 +1,5 @@
 package com.travelassistant.trip;
 
-import com.travelassistant.common.api.ApiMeta;
 import com.travelassistant.common.api.ApiResponse;
 import com.travelassistant.common.web.RequestIdFilter;
 import com.travelassistant.trip.api.AdjustTripRequest;
@@ -35,91 +34,101 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/trips")
 public class TripController {
-    private final TripCommandService commands;
-    private final TripQueryService queries;
+  private final TripCommandService commands;
+  private final TripQueryService queries;
 
-    public TripController(TripCommandService commands, TripQueryService queries) {
-        this.commands = commands;
-        this.queries = queries;
-    }
+  public TripController(TripCommandService commands, TripQueryService queries) {
+    this.commands = commands;
+    this.queries = queries;
+  }
 
-    @PostMapping
-    ResponseEntity<ApiResponse<TripView>> create(
-            Principal principal,
-            @RequestHeader("Idempotency-Key") @Size(min = 8, max = 128) String idempotencyKey,
-            @Valid @RequestBody CreateTripRequest body,
-            HttpServletRequest request) {
-        Trip trip = commands.create(principal.getName(), idempotencyKey, body);
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(ApiResponse.of(queries.get(principal.getName(), trip.getId()), requestId(request)));
-    }
+  @PostMapping
+  ResponseEntity<ApiResponse<TripView>> create(
+      Principal principal,
+      @RequestHeader("Idempotency-Key") @Size(min = 8, max = 128) String idempotencyKey,
+      @Valid @RequestBody CreateTripRequest body,
+      HttpServletRequest request) {
+    Trip trip = commands.create(principal.getName(), idempotencyKey, body);
+    return ResponseEntity.status(HttpStatus.ACCEPTED)
+        .body(ApiResponse.of(queries.get(principal.getName(), trip.getId()), requestId(request)));
+  }
 
-    @GetMapping
-    TripListResponse list(
-            Principal principal,
-            @RequestParam(required = false) String cursor,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
-            HttpServletRequest request) {
-        PageResult<TripSummary> page = queries.list(principal.getName(), cursor, limit);
-        return new TripListResponse(page.items(),
-                new TripListMeta(requestId(request), page.nextCursor(), page.hasMore()));
-    }
+  @GetMapping
+  TripListResponse list(
+      Principal principal,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
+      HttpServletRequest request) {
+    PageResult<TripSummary> page = queries.list(principal.getName(), cursor, limit);
+    return new TripListResponse(
+        page.items(), new TripListMeta(requestId(request), page.nextCursor(), page.hasMore()));
+  }
 
-    @GetMapping("/{tripId}")
-    ApiResponse<TripView> get(Principal principal, @PathVariable String tripId,
-                              HttpServletRequest request) {
-        return ApiResponse.of(queries.get(principal.getName(), tripId), requestId(request));
-    }
+  @GetMapping("/{tripId}")
+  ApiResponse<TripView> get(
+      Principal principal, @PathVariable String tripId, HttpServletRequest request) {
+    return ApiResponse.of(queries.get(principal.getName(), tripId), requestId(request));
+  }
 
-    @PatchMapping("/{tripId}")
-    ResponseEntity<ApiResponse<TripView>> update(
-            Principal principal, @PathVariable String tripId,
-            @Valid @RequestBody CreateTripRequest body, HttpServletRequest request) {
-        commands.update(principal.getName(), tripId, body);
-        return ResponseEntity.accepted()
-                .body(ApiResponse.of(queries.get(principal.getName(), tripId), requestId(request)));
-    }
+  @PatchMapping("/{tripId}")
+  ResponseEntity<ApiResponse<TripView>> update(
+      Principal principal,
+      @PathVariable String tripId,
+      @Valid @RequestBody CreateTripRequest body,
+      HttpServletRequest request) {
+    commands.update(principal.getName(), tripId, body);
+    return ResponseEntity.accepted()
+        .body(ApiResponse.of(queries.get(principal.getName(), tripId), requestId(request)));
+  }
 
-    @DeleteMapping("/{tripId}")
-    ResponseEntity<Void> delete(Principal principal, @PathVariable String tripId) {
-        commands.delete(principal.getName(), tripId);
-        return ResponseEntity.noContent().build();
-    }
+  @DeleteMapping("/{tripId}")
+  ResponseEntity<Void> delete(Principal principal, @PathVariable String tripId) {
+    commands.delete(principal.getName(), tripId);
+    return ResponseEntity.noContent().build();
+  }
 
-    @PostMapping("/{tripId}/adjustments")
-    ResponseEntity<ApiResponse<TripView>> adjust(
-            Principal principal, @PathVariable String tripId,
-            @Valid @RequestBody AdjustTripRequest body, HttpServletRequest request) {
-        commands.adjust(principal.getName(), tripId, body.instruction());
-        return ResponseEntity.accepted()
-                .body(ApiResponse.of(queries.get(principal.getName(), tripId), requestId(request)));
-    }
+  @PostMapping("/{tripId}/adjustments")
+  ResponseEntity<ApiResponse<TripView>> adjust(
+      Principal principal,
+      @PathVariable String tripId,
+      @Valid @RequestBody AdjustTripRequest body,
+      HttpServletRequest request) {
+    commands.adjust(principal.getName(), tripId, body.instruction());
+    return ResponseEntity.accepted()
+        .body(ApiResponse.of(queries.get(principal.getName(), tripId), requestId(request)));
+  }
 
-    @GetMapping("/{tripId}/versions")
-    ApiResponse<List<VersionSummary>> versions(
-            Principal principal, @PathVariable String tripId, HttpServletRequest request) {
-        return ApiResponse.of(queries.versions(principal.getName(), tripId), requestId(request));
-    }
+  @GetMapping("/{tripId}/versions")
+  ApiResponse<List<VersionSummary>> versions(
+      Principal principal, @PathVariable String tripId, HttpServletRequest request) {
+    return ApiResponse.of(queries.versions(principal.getName(), tripId), requestId(request));
+  }
 
-    @GetMapping("/{tripId}/versions/{versionNumber}")
-    ApiResponse<VersionView> version(
-            Principal principal, @PathVariable String tripId,
-            @PathVariable @Min(1) int versionNumber, HttpServletRequest request) {
-        return ApiResponse.of(queries.version(principal.getName(), tripId, versionNumber), requestId(request));
-    }
+  @GetMapping("/{tripId}/versions/{versionNumber}")
+  ApiResponse<VersionView> version(
+      Principal principal,
+      @PathVariable String tripId,
+      @PathVariable @Min(1) int versionNumber,
+      HttpServletRequest request) {
+    return ApiResponse.of(
+        queries.version(principal.getName(), tripId, versionNumber), requestId(request));
+  }
 
-    @PostMapping("/{tripId}/versions/{versionNumber}:restore")
-    ApiResponse<TripView> restore(
-            Principal principal, @PathVariable String tripId,
-            @PathVariable @Min(1) int versionNumber, HttpServletRequest request) {
-        commands.restore(principal.getName(), tripId, versionNumber);
-        return ApiResponse.of(queries.get(principal.getName(), tripId), requestId(request));
-    }
+  @PostMapping("/{tripId}/versions/{versionNumber}:restore")
+  ApiResponse<TripView> restore(
+      Principal principal,
+      @PathVariable String tripId,
+      @PathVariable @Min(1) int versionNumber,
+      HttpServletRequest request) {
+    commands.restore(principal.getName(), tripId, versionNumber);
+    return ApiResponse.of(queries.get(principal.getName(), tripId), requestId(request));
+  }
 
-    private String requestId(HttpServletRequest request) {
-        return (String) request.getAttribute(RequestIdFilter.ATTRIBUTE);
-    }
+  private String requestId(HttpServletRequest request) {
+    return (String) request.getAttribute(RequestIdFilter.ATTRIBUTE);
+  }
 
-    record TripListResponse(List<TripSummary> data, TripListMeta meta) {}
-    record TripListMeta(String requestId, String nextCursor, boolean hasMore) {}
+  record TripListResponse(List<TripSummary> data, TripListMeta meta) {}
+
+  record TripListMeta(String requestId, String nextCursor, boolean hasMore) {}
 }

@@ -10,7 +10,7 @@
   </parent>
   <groupId>com.travelassistant</groupId>
   <artifactId>travel-assistant-api</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.1.0</version>
   <name>travel-assistant-api</name>
   <description>智能旅游助手后端 API</description>
   <properties>
@@ -77,6 +77,20 @@
   </dependencies>
   <build>
     <plugins>
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>3.1.0</version>
+        <configuration><java><googleJavaFormat><version>1.28.0</version></googleJavaFormat><removeUnusedImports/><formatAnnotations/></java></configuration>
+        <executions><execution><id>format-check</id><phase>verify</phase><goals><goal>check</goal></goals></execution></executions>
+      </plugin>
+      <plugin>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>4.9.8.2</version>
+        <configuration><effort>Max</effort><threshold>High</threshold><excludeFilterFile>${project.basedir}/spotbugs-exclude.xml</excludeFilterFile></configuration>
+        <executions><execution><id>static-analysis</id><phase>verify</phase><goals><goal>check</goal></goals></execution></executions>
+      </plugin>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>

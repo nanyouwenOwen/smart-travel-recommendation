@@ -12,15 +12,15 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(HealthController.class)
 class HealthControllerTest {
-    @Autowired
-    private MockMvc mockMvc;
+  @Autowired private MockMvc mockMvc;
 
-    @Test
-    void returnsHealthAndRequestId() throws Exception {
-        mockMvc.perform(get("/api/v1/health").header("X-Request-Id", "test-request"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("X-Request-Id", "test-request"))
-                .andExpect(jsonPath("$.data.status").value("UP"))
-                .andExpect(jsonPath("$.meta.requestId").value("test-request"));
-    }
+  @Test
+  void returnsHealthAndRequestId() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/health").header("X-Request-Id", "test-request"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("X-Request-Id", "test-request"))
+        .andExpect(jsonPath("$.data.status").value("UP"))
+        .andExpect(jsonPath("$.meta.requestId").value("test-request"));
+  }
 }

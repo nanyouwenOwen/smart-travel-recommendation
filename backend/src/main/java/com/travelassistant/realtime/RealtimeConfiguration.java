@@ -8,8 +8,11 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @EnableConfigurationProperties(RealtimeProperties.class)
 public class RealtimeConfiguration {
-    @Bean HttpClient realtimeHttpClient(RealtimeProperties properties) {
-        return HttpClient.newBuilder().connectTimeout(properties.connectTimeout())
-                .followRedirects(HttpClient.Redirect.NEVER).build();
-    }
+  @Bean
+  HttpClient realtimeHttpClient(RealtimeProperties properties) {
+    return HttpClient.newBuilder()
+        .connectTimeout(properties.connectTimeout())
+        .followRedirects(HttpClient.Redirect.NEVER)
+        .build();
+  }
 }

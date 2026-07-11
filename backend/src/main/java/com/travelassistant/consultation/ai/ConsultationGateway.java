@@ -1,7 +1,135 @@
 package com.travelassistant.consultation.ai;
-import com.travelassistant.common.exception.BusinessException;import java.util.*;import java.util.concurrent.*;import java.util.concurrent.atomic.*;import java.util.function.Consumer;import org.springframework.http.HttpStatus;import org.springframework.stereotype.Service;
-@Service public class ConsultationGateway{private final ConsultationProvider provider;private final ConsultationProperties props;private final Semaphore global;private final ConcurrentHashMap<String,Semaphore>userConcurrency=new ConcurrentHashMap<>();private final ConcurrentHashMap<String,Deque<Long>>requests=new ConcurrentHashMap<>();private final ExecutorService calls=Executors.newVirtualThreadPerTaskExecutor();private final ScheduledExecutorService timers=Executors.newSingleThreadScheduledExecutor();public ConsultationGateway(ConsultationProvider p,ConsultationProperties props){provider=p;this.props=props;global=new Semaphore(props.globalConcurrency());}
- public ConsultationResult answer(String user,ConsultationPrompt prompt){return execute(user,()->provider.answer(prompt),true,null);}public ConsultationResult stream(String user,ConsultationPrompt prompt,Consumer<String>chunks,CancellationToken token){long started=System.nanoTime();AtomicLong last=new AtomicLong();AtomicReference<Future<?>>inFlight=new AtomicReference<>();Consumer<String>observed=chunk->{last.set(System.nanoTime());chunks.accept(chunk);};ScheduledFuture<?>watch=timers.scheduleAtFixedRate(()->{long now=System.nanoTime(),seen=last.get();if((seen==0&&now-started>props.firstByteTimeout().toNanos())||(seen>0&&now-seen>props.idleTimeout().toNanos())){token.cancel("AI_TIMEOUT");Future<?>future=inFlight.get();if(future!=null)future.cancel(true);}},50,50,TimeUnit.MILLISECONDS);try{return execute(user,()->provider.stream(prompt,observed,token),false,inFlight);}finally{watch.cancel(false);}}
- private ConsultationResult execute(String user,Callable<ConsultationResult>call,boolean retry,AtomicReference<Future<?>>inFlight){admit(user);Semaphore mine=userConcurrency.computeIfAbsent(user,k->new Semaphore(props.userConcurrency()));if(!mine.tryAcquire())throw new BusinessException("RATE_LIMITED","用户已有咨询进行中",HttpStatus.TOO_MANY_REQUESTS);if(!global.tryAcquire()){mine.release();throw new BusinessException("RATE_LIMITED","咨询并发已达上限",HttpStatus.TOO_MANY_REQUESTS);}long deadline=System.nanoTime()+props.totalTimeout().toNanos();try{int attempts=retry?props.maxAttempts():1;ConsultationException last=null;for(int i=1;i<=attempts;i++){try{return within(call,deadline,inFlight);}catch(ConsultationException e){last=e;if(!e.isRetryable()||i==attempts)throw e;}}throw last;}finally{global.release();mine.release();}}
- private ConsultationResult within(Callable<ConsultationResult>call,long deadline,AtomicReference<Future<?>>inFlight){long remaining=deadline-System.nanoTime();if(remaining<=0)throw new ConsultationException("AI_TIMEOUT","咨询超过总截止时间",false);Future<ConsultationResult>future=calls.submit(call);if(inFlight!=null)inFlight.set(future);try{return future.get(remaining,TimeUnit.NANOSECONDS);}catch(CancellationException e){throw new ConsultationException("AI_TIMEOUT","咨询流响应超时",false);}catch(TimeoutException e){future.cancel(true);throw new ConsultationException("AI_TIMEOUT","咨询超过总截止时间",false);}catch(InterruptedException e){future.cancel(true);Thread.currentThread().interrupt();throw new ConsultationException("AI_UNAVAILABLE","咨询被中断",false);}catch(ExecutionException e){if(e.getCause()instanceof ConsultationException c)throw c;if(e.getCause()instanceof RuntimeException r)throw r;throw new ConsultationException("AI_UNAVAILABLE","咨询不可用",true);}finally{if(inFlight!=null)inFlight.compareAndSet(future,null);}}
- private void admit(String user){long now=System.currentTimeMillis();Deque<Long>q=requests.computeIfAbsent(user,k->new ArrayDeque<>());synchronized(q){while(!q.isEmpty()&&q.peek()<now-60000)q.remove();if(q.size()>=props.userRpm())throw new BusinessException("RATE_LIMITED","咨询请求过于频繁",HttpStatus.TOO_MANY_REQUESTS);q.add(now);}}public String model(){return provider.modelName();}}
+
+import com.travelassistant.common.exception.BusinessException;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
+import java.util.function.Consumer;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ConsultationGateway {
+  private final ConsultationProvider provider;
+  private final ConsultationProperties props;
+  private final Semaphore global;
+  private final ConcurrentHashMap<String, Semaphore> userConcurrency = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, Deque<Long>> requests = new ConcurrentHashMap<>();
+  private final ExecutorService calls = Executors.newVirtualThreadPerTaskExecutor();
+  private final ScheduledExecutorService timers = Executors.newSingleThreadScheduledExecutor();
+
+  public ConsultationGateway(ConsultationProvider p, ConsultationProperties props) {
+    provider = p;
+    this.props = props;
+    global = new Semaphore(props.globalConcurrency());
+  }
+
+  public ConsultationResult answer(String user, ConsultationPrompt prompt) {
+    return execute(user, () -> provider.answer(prompt), true, null);
+  }
+
+  public ConsultationResult stream(
+      String user, ConsultationPrompt prompt, Consumer<String> chunks, CancellationToken token) {
+    long started = System.nanoTime();
+    AtomicLong last = new AtomicLong();
+    AtomicReference<Future<?>> inFlight = new AtomicReference<>();
+    Consumer<String> observed =
+        chunk -> {
+          last.set(System.nanoTime());
+          chunks.accept(chunk);
+        };
+    ScheduledFuture<?> watch =
+        timers.scheduleAtFixedRate(
+            () -> {
+              long now = System.nanoTime(), seen = last.get();
+              if ((seen == 0 && now - started > props.firstByteTimeout().toNanos())
+                  || (seen > 0 && now - seen > props.idleTimeout().toNanos())) {
+                token.cancel("AI_TIMEOUT");
+                Future<?> future = inFlight.get();
+                if (future != null) future.cancel(true);
+              }
+            },
+            50,
+            50,
+            TimeUnit.MILLISECONDS);
+    try {
+      return execute(user, () -> provider.stream(prompt, observed, token), false, inFlight);
+    } finally {
+      watch.cancel(false);
+    }
+  }
+
+  private ConsultationResult execute(
+      String user,
+      Callable<ConsultationResult> call,
+      boolean retry,
+      AtomicReference<Future<?>> inFlight) {
+    admit(user);
+    Semaphore mine =
+        userConcurrency.computeIfAbsent(user, k -> new Semaphore(props.userConcurrency()));
+    if (!mine.tryAcquire())
+      throw new BusinessException("RATE_LIMITED", "用户已有咨询进行中", HttpStatus.TOO_MANY_REQUESTS);
+    if (!global.tryAcquire()) {
+      mine.release();
+      throw new BusinessException("RATE_LIMITED", "咨询并发已达上限", HttpStatus.TOO_MANY_REQUESTS);
+    }
+    long deadline = System.nanoTime() + props.totalTimeout().toNanos();
+    try {
+      int attempts = retry ? props.maxAttempts() : 1;
+      ConsultationException last = null;
+      for (int i = 1; i <= attempts; i++) {
+        try {
+          return within(call, deadline, inFlight);
+        } catch (ConsultationException e) {
+          last = e;
+          if (!e.isRetryable() || i == attempts) throw e;
+        }
+      }
+      throw last;
+    } finally {
+      global.release();
+      mine.release();
+    }
+  }
+
+  private ConsultationResult within(
+      Callable<ConsultationResult> call, long deadline, AtomicReference<Future<?>> inFlight) {
+    long remaining = deadline - System.nanoTime();
+    if (remaining <= 0) throw new ConsultationException("AI_TIMEOUT", "咨询超过总截止时间", false);
+    Future<ConsultationResult> future = calls.submit(call);
+    if (inFlight != null) inFlight.set(future);
+    try {
+      return future.get(remaining, TimeUnit.NANOSECONDS);
+    } catch (CancellationException e) {
+      throw new ConsultationException("AI_TIMEOUT", "咨询流响应超时", false);
+    } catch (TimeoutException e) {
+      future.cancel(true);
+      throw new ConsultationException("AI_TIMEOUT", "咨询超过总截止时间", false);
+    } catch (InterruptedException e) {
+      future.cancel(true);
+      Thread.currentThread().interrupt();
+      throw new ConsultationException("AI_UNAVAILABLE", "咨询被中断", false);
+    } catch (ExecutionException e) {
+      if (e.getCause() instanceof ConsultationException c) throw c;
+      if (e.getCause() instanceof RuntimeException r) throw r;
+      throw new ConsultationException("AI_UNAVAILABLE", "咨询不可用", true);
+    } finally {
+      if (inFlight != null) inFlight.compareAndSet(future, null);
+    }
+  }
+
+  private void admit(String user) {
+    long now = System.currentTimeMillis();
+    Deque<Long> q = requests.computeIfAbsent(user, k -> new ArrayDeque<>());
+    synchronized (q) {
+      while (!q.isEmpty() && q.peek() < now - 60000) q.remove();
+      if (q.size() >= props.userRpm())
+        throw new BusinessException("RATE_LIMITED", "咨询请求过于频繁", HttpStatus.TOO_MANY_REQUESTS);
+      q.add(now);
+    }
+  }
+
+  public String model() {
+    return provider.modelName();
+  }
+}

@@ -1,2 +1,41 @@
-<script setup lang="ts">import type { PlaceSnapshot } from '@/api/types';import SourceList from './SourceList.vue';defineProps<{snapshot:PlaceSnapshot}>()</script>
-<template><section class="panel realtime-panel"><h2>附近景点</h2><p v-if="snapshot.warning" class="banner warning">{{snapshot.warning}}</p><ul v-if="snapshot.places.length" class="place-list"><li v-for="place in snapshot.places" :key="place.providerId"><div><strong>{{place.name}}</strong><small>{{place.distanceMeters!=null?`${Math.round(place.distanceMeters)} 米`:'附近'}}</small></div><p>营业信息：{{place.openingHours||'暂无数据，请向景点官方核验'}}</p><a v-if="place.website" :href="place.website" target="_blank" rel="noopener noreferrer">官方网站</a><a v-if="place.providerUrl" :href="place.providerUrl" target="_blank" rel="noopener noreferrer">地图数据</a></li></ul><p v-else class="muted">附近暂未检索到景点信息。</p><SourceList :sources="snapshot.sources"/></section></template>
+<script setup lang="ts">
+import type { PlaceSnapshot } from "@/api/types";
+import SourceList from "./SourceList.vue";
+defineProps<{ snapshot: PlaceSnapshot }>();
+</script>
+<template>
+  <section class="panel realtime-panel">
+    <h2>附近景点</h2>
+    <p v-if="snapshot.warning" class="banner warning">{{ snapshot.warning }}</p>
+    <ul v-if="snapshot.places.length" class="place-list">
+      <li v-for="place in snapshot.places" :key="place.providerId">
+        <div>
+          <strong>{{ place.name }}</strong
+          ><small>{{
+            place.distanceMeters != null
+              ? `${Math.round(place.distanceMeters)} 米`
+              : "附近"
+          }}</small>
+        </div>
+        <p>
+          营业信息：{{ place.openingHours || "暂无数据，请向景点官方核验" }}
+        </p>
+        <a
+          v-if="place.website"
+          :href="place.website"
+          target="_blank"
+          rel="noopener noreferrer"
+          >官方网站</a
+        ><a
+          v-if="place.providerUrl"
+          :href="place.providerUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          >地图数据</a
+        >
+      </li>
+    </ul>
+    <p v-else class="muted">附近暂未检索到景点信息。</p>
+    <SourceList :sources="snapshot.sources" />
+  </section>
+</template>

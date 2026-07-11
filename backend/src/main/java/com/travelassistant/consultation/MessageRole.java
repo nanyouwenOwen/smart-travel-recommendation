@@ -1,1 +1,7 @@
-package com.travelassistant.consultation; public enum MessageRole { USER, ASSISTANT, SYSTEM }
+package com.travelassistant.consultation;
+
+public enum MessageRole {
+  USER,
+  ASSISTANT,
+  SYSTEM
+}

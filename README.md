@@ -174,6 +174,14 @@ bash scripts/e2e.sh
 
 ## 接口与开发约定
 
+## 完整容器栈与质量门
+
+复制 `.env.example` 为 `.env` 并替换密码后，执行 `docker compose up --build -d`，从 `http://localhost:5173` 访问前端；API 由前端同源代理，不需要公开后端端口。前后端镜像均以非 root 用户运行。停止使用 `docker compose down`，保留数据卷；需要清空本地数据时显式加 `-v`。
+
+首次开发可运行 `scripts/install-hooks.sh` 安装仅作用于本仓库的提交前检查。完整质量门为 `scripts/check.sh`，快速门为 `scripts/check.sh --quick`。性能基线、容器和恢复冒烟分别由 `scripts/perf.sh`、`scripts/compose-smoke.sh`、`scripts/recovery-smoke.sh` 执行。
+
+部署与日常维护参见 [`docs/deployment.md`](docs/deployment.md)、[`docs/operations.md`](docs/operations.md)、[`docs/backup-restore.md`](docs/backup-restore.md) 和 [`docs/troubleshooting.md`](docs/troubleshooting.md)。`0.1.0` 当前是发布候选；创建 tag/GitHub Release 前使用 [`docs/release-checklist.md`](docs/release-checklist.md) 并取得仓库所有者授权。
+
 - 人类可读约束见 [`docs/api-contract.md`](docs/api-contract.md)。
 - 机器可读契约见 [`docs/openapi.yaml`](docs/openapi.yaml)，它是接口字段的单一事实来源。
 - 数据关系和持久化规则见 [`docs/data-model.md`](docs/data-model.md)。

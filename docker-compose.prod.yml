@@ -1,0 +1,23 @@
+services:
+  mysql:
+    ports: !reset []
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?set MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+  backend:
+    environment:
+      DB_USERNAME: ${MYSQL_USER:?set MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?set a random JWT_SECRET of at least 32 bytes}
+      TRIP_AI_PROVIDER: ${TRIP_AI_PROVIDER:?set TRIP_AI_PROVIDER explicitly}
+      CONSULTATION_AI_PROVIDER: ${CONSULTATION_AI_PROVIDER:?set CONSULTATION_AI_PROVIDER explicitly}
+      REALTIME_PROVIDER_MODE: ${REALTIME_PROVIDER_MODE:?set REALTIME_PROVIDER_MODE explicitly}
+    read_only: true
+    tmpfs: [/tmp]
+    logging: { driver: json-file, options: { max-size: 10m, max-file: "3" } }
+  frontend:
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    logging: { driver: json-file, options: { max-size: 10m, max-file: "3" } }

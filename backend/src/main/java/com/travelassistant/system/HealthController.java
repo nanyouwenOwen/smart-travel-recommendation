@@ -11,10 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/health")
 public class HealthController {
-    @GetMapping
-    public ApiResponse<Map<String, String>> health(HttpServletRequest request) {
-        String requestId = (String) request.getAttribute(RequestIdFilter.ATTRIBUTE);
-        return ApiResponse.of(Map.of("status", "UP"), requestId);
-    }
+  @GetMapping
+  public ApiResponse<Map<String, String>> health(HttpServletRequest request) {
+    String requestId = (String) request.getAttribute(RequestIdFilter.ATTRIBUTE);
+    return ApiResponse.of(Map.of("status", "UP"), requestId);
+  }
 }
-

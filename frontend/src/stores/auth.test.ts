@@ -1,4 +1,52 @@
-import { beforeEach,describe,expect,it,vi } from 'vitest';import { createPinia,setActivePinia } from 'pinia';import { authApi } from '@/api/auth';import { useAuthStore } from './auth'
-vi.mock('@/api/auth',()=>({authApi:{register:vi.fn(),login:vi.fn(),me:vi.fn(),logout:vi.fn()}}))
-const tokens={accessToken:'access',refreshToken:'refresh',expiresIn:900,tokenType:'Bearer' as const},user={id:'u1',email:'a@b.com',displayName:'旅行者',createdAt:'now'}
-describe('auth store',()=>{beforeEach(()=>{setActivePinia(createPinia());vi.clearAllMocks();vi.mocked(authApi.me).mockResolvedValue(user)});it('registers, persists the rotating refresh token and logs out locally',async()=>{vi.mocked(authApi.register).mockResolvedValue(tokens);const store=useAuthStore();await store.register('a@b.com','password','旅行者');expect(store.authenticated).toBe(true);expect(sessionStorage.getItem('travel-assistant.refresh-token')).toBe('refresh');await store.logout();expect(store.authenticated).toBe(false);expect(authApi.logout).toHaveBeenCalledWith('refresh')});it('restores a session marker and clears it when initialization fails',async()=>{sessionStorage.setItem('travel-assistant.refresh-token','expired');vi.mocked(authApi.me).mockRejectedValue(new Error('expired'));const store=useAuthStore();await store.initialize();expect(store.initialized).toBe(true);expect(store.refreshToken).toBeNull()});it('logs in and exposes the current profile',async()=>{vi.mocked(authApi.login).mockResolvedValue(tokens);const store=useAuthStore();await store.login('a@b.com','password');expect(store.user?.displayName).toBe('旅行者')})})
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createPinia, setActivePinia } from "pinia";
+import { authApi } from "@/api/auth";
+import { useAuthStore } from "./auth";
+vi.mock("@/api/auth", () => ({
+  authApi: { register: vi.fn(), login: vi.fn(), me: vi.fn(), logout: vi.fn() },
+}));
+const tokens = {
+    accessToken: "access",
+    refreshToken: "refresh",
+    expiresIn: 900,
+    tokenType: "Bearer" as const,
+  },
+  user = {
+    id: "u1",
+    email: "a@b.com",
+    displayName: "旅行者",
+    createdAt: "now",
+  };
+describe("auth store", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+    vi.mocked(authApi.me).mockResolvedValue(user);
+  });
+  it("registers, persists the rotating refresh token and logs out locally", async () => {
+    vi.mocked(authApi.register).mockResolvedValue(tokens);
+    const store = useAuthStore();
+    await store.register("a@b.com", "password", "旅行者");
+    expect(store.authenticated).toBe(true);
+    expect(sessionStorage.getItem("travel-assistant.refresh-token")).toBe(
+      "refresh",
+    );
+    await store.logout();
+    expect(store.authenticated).toBe(false);
+    expect(authApi.logout).toHaveBeenCalledWith("refresh");
+  });
+  it("restores a session marker and clears it when initialization fails", async () => {
+    sessionStorage.setItem("travel-assistant.refresh-token", "expired");
+    vi.mocked(authApi.me).mockRejectedValue(new Error("expired"));
+    const store = useAuthStore();
+    await store.initialize();
+    expect(store.initialized).toBe(true);
+    expect(store.refreshToken).toBeNull();
+  });
+  it("logs in and exposes the current profile", async () => {
+    vi.mocked(authApi.login).mockResolvedValue(tokens);
+    const store = useAuthStore();
+    await store.login("a@b.com", "password");
+    expect(store.user?.displayName).toBe("旅行者");
+  });
+});

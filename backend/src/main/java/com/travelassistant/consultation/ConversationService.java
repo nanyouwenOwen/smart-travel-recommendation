@@ -1,12 +1,333 @@
 package com.travelassistant.consultation;
-import com.travelassistant.common.exception.BusinessException;import com.travelassistant.consultation.ai.*;import com.travelassistant.consultation.api.ConsultationDtos.*;import com.travelassistant.consultation.security.*;import com.travelassistant.trip.*;import com.travelassistant.user.*;import java.nio.charset.StandardCharsets;import java.security.*;import java.time.Instant;import java.util.*;import org.springframework.core.io.ClassPathResource;import org.springframework.data.domain.PageRequest;import org.springframework.http.HttpStatus;import org.springframework.stereotype.Service;import org.springframework.transaction.PlatformTransactionManager;import org.springframework.transaction.support.TransactionTemplate;
-@Service public class ConversationService {private static final Set<MessageStatus>ACTIVE=Set.of(MessageStatus.PENDING,MessageStatus.STREAMING);private final ConversationRepository conversations;private final MessageRepository messages;private final MessageRequestRepository requests;private final ConversationStreamRepository streams;private final UserRepository users;private final TripRepository trips;private final ConversationMapper mapper;private final ConsultationGateway gateway;private final PrivacyRedactor privacy;private final ContentSafetyPolicy safety;private final OutputSafetyPolicy outputSafety;private final TripContextSnapshotMapper tripContext;private final ConsultationProperties properties;private final RealtimeConsultationContext realtimeContext;private final tools.jackson.databind.ObjectMapper json;private final TransactionTemplate tx;
- public ConversationService(ConversationRepository c,MessageRepository m,MessageRequestRepository r,ConversationStreamRepository streams,UserRepository u,TripRepository t,ConversationMapper map,ConsultationGateway g,PrivacyRedactor p,ContentSafetyPolicy s,OutputSafetyPolicy output,TripContextSnapshotMapper tripContext,ConsultationProperties properties,RealtimeConsultationContext realtimeContext,tools.jackson.databind.ObjectMapper json,PlatformTransactionManager manager){conversations=c;messages=m;requests=r;this.streams=streams;users=u;trips=t;mapper=map;gateway=g;privacy=p;safety=s;outputSafety=output;this.tripContext=tripContext;this.properties=properties;this.realtimeContext=realtimeContext;this.json=json;tx=new TransactionTemplate(manager);}
- public ConversationView create(String user,String title,String tripId){return tx.execute(status->{User owner=users.findById(user).orElseThrow(this::unauthorized);Trip trip=null;if(tripId!=null){trip=trips.findByIdAndUserId(tripId,user).orElseThrow(this::tripNotFound);if(trip.getCurrentVersion()==null)throw new BusinessException("TRIP_NOT_READY","行程尚未生成完成",HttpStatus.CONFLICT);}String normalized=title==null||title.isBlank()?null:title.trim();if(normalized!=null&&normalized.length()>100)throw validation("title 过长");return mapper.conversation(conversations.save(new Conversation(owner,trip,normalized)),List.of());});}
- public List<ConversationSummary> list(String user,int limit){return conversations.findByUserIdOrderByUpdatedAtDescIdDesc(user,PageRequest.of(0,Math.min(Math.max(limit,1),100))).stream().map(mapper::summary).toList();}public ConversationView get(String user,String id){return tx.execute(status->{Conversation c=owned(user,id);return mapper.conversation(c,messages.findByConversationIdAndRoleNotOrderByCreatedAtAscIdAsc(id,MessageRole.SYSTEM));});}
- public TurnView ask(String user,String conversationId,String key,String raw){Prepared p=tx.execute(status->prepare(user,conversationId,key,raw,"ANSWER"));if(p.replayed())return tx.execute(status->turn(p.userMessageId(),p.assistantMessageId(),true));try{ConsultationResult result=gateway.answer(user,p.prompt());outputSafety.check(result.content());tx.executeWithoutResult(status->complete(p.assistantMessageId(),result));return tx.execute(status->turn(p.userMessageId(),p.assistantMessageId(),false));}catch(RuntimeException failure){String code=failure instanceof BusinessException b?b.getCode():failure instanceof ConsultationException c?c.getCode():failure instanceof UnsafeContentException?"CONTENT_REJECTED":"AI_UNAVAILABLE";tx.executeWithoutResult(status->fail(p.assistantMessageId(),code));if(failure instanceof BusinessException b)throw b;if(failure instanceof UnsafeContentException u)throw u;HttpStatus status="AI_TIMEOUT".equals(code)?HttpStatus.GATEWAY_TIMEOUT:"AI_RATE_LIMITED".equals(code)?HttpStatus.TOO_MANY_REQUESTS:HttpStatus.SERVICE_UNAVAILABLE;throw new BusinessException(code,"AI 咨询暂时不可用",status);}}
- PreparedStream prepareStream(String user,String conversation,String key,String raw){return tx.execute(status->{Prepared prepared=prepare(user,conversation,key,raw,"STREAM");if(prepared.replayed()){ConversationStream existing=streams.findByAssistantMessageId(prepared.assistantMessageId()).orElseThrow(()->new BusinessException("MESSAGE_IN_PROGRESS","流正在建立",HttpStatus.CONFLICT));return new PreparedStream(prepared,existing.getId(),true);}Conversation c=conversations.findByIdAndUserId(conversation,user).orElseThrow(this::notFound);Message assistant=messages.findById(prepared.assistantMessageId()).orElseThrow();assistant.streaming();ConversationStream stream=streams.save(new ConversationStream(c,assistant,Instant.now().plus(properties.eventRetention())));streams.flush();return new PreparedStream(prepared,stream.getId(),false);});}void completeStream(String id,ConsultationResult result){tx.executeWithoutResult(status->complete(id,result));}void failStream(String id,String code){tx.executeWithoutResult(status->fail(id,code));}
- private Prepared prepare(String user,String id,String key,String raw,String operation){Conversation c=conversations.lockOwned(id,user).orElseThrow(this::notFound);Normalized normalized=normalize(raw);String hash=hash(normalized.original());Optional<MessageRequest>existing=requests.findByConversationIdAndOperationAndKey(id,operation,key);if(existing.isPresent()){MessageRequest r=existing.get();if(!r.getHash().equals(hash))throw new BusinessException("IDEMPOTENCY_KEY_CONFLICT","幂等键已用于其他内容",HttpStatus.CONFLICT);MessageStatus state=r.getAssistantMessage().getStatus();if(operation.equals("STREAM")||state==MessageStatus.COMPLETED||state==MessageStatus.FAILED)return new Prepared(r.getUserMessage().getId(),r.getAssistantMessage().getId(),null,true);throw new BusinessException("MESSAGE_IN_PROGRESS","消息仍在生成",HttpStatus.CONFLICT);}if(messages.existsByConversationIdAndStatusIn(id,ACTIVE))throw new BusinessException("CONVERSATION_BUSY","会话已有消息生成中",HttpStatus.CONFLICT);TripVersion version=c.getTrip()==null?null:c.getTrip().getCurrentVersion();RealtimeConsultationContext.Result realtime=realtimeContext.resolve(user,c.getTrip()==null?null:c.getTrip().getId(),normalized.safe());ConsultationPrompt prompt=prompt(c,version,normalized.safe(),realtime.prompt());String turn=UUID.randomUUID().toString();Message um=messages.save(new Message(c,turn,version,MessageRole.USER,normalized.safe(),MessageStatus.COMPLETED));Message am=messages.save(new Message(c,turn,version,MessageRole.ASSISTANT,"",MessageStatus.PENDING));if(!realtime.sources().isEmpty())try{String sourceJson=json.writeValueAsString(realtime.sources());Instant updated=realtime.sources().stream().map(x->x.sourceUpdatedAt()==null?x.retrievedAt():x.sourceUpdatedAt()).map(Instant::parse).max(Instant::compareTo).orElse(null);am.sources(sourceJson,updated);}catch(Exception ignored){}messages.flush();requests.save(new MessageRequest(c,operation,key,hash,um,am));c.titleIfMissing(normalized.safe().substring(0,Math.min(40,normalized.safe().length())));conversations.touch(id);return new Prepared(um.getId(),am.getId(),prompt,false);}
- private ConsultationPrompt prompt(Conversation c,TripVersion version,String current,String realtime){try{List<ConsultationPrompt.PromptMessage>out=new ArrayList<>();out.add(new ConsultationPrompt.PromptMessage("system",new ClassPathResource("prompts/consultation/v1/system.txt").getContentAsString(StandardCharsets.UTF_8)));if(version!=null)out.add(new ConsultationPrompt.PromptMessage("user",tripContext.map(version)));List<Message>completed=messages.findByConversationIdAndRoleNotOrderByCreatedAtAscIdAsc(c.getId(),MessageRole.SYSTEM).stream().filter(m->m.getStatus()==MessageStatus.COMPLETED).toList();int start=Math.max(0,completed.size()-12);for(Message m:completed.subList(start,completed.size()))out.add(new ConsultationPrompt.PromptMessage(m.getRole()==MessageRole.USER?"user":"assistant",safe(m.getContent())));if(realtime!=null)out.add(new ConsultationPrompt.PromptMessage("user",realtime));out.add(new ConsultationPrompt.PromptMessage("user",current));return new ConsultationPrompt(List.copyOf(out));}catch(Exception e){throw new IllegalStateException(e);}}
- private Normalized normalize(String raw){if(raw==null)throw validation("content 必填");String value=raw.trim();if(value.isEmpty()||value.length()>5000||value.chars().anyMatch(ch->Character.isISOControl(ch)&&!Character.isWhitespace(ch)))throw validation("content 无效");safety.check(value);return new Normalized(value,privacy.redact(value).content());}private String safe(String text){return privacy.redact(text==null?"":text).content();}private void complete(String id,ConsultationResult r){messages.findById(id).orElseThrow().complete(r.content(),r.model(),r.inputTokens(),r.outputTokens());}private void fail(String id,String code){messages.findById(id).ifPresent(m->m.fail(code));}private TurnView turn(String u,String a,boolean replayed){return new TurnView(mapper.message(messages.findById(u).orElseThrow()),mapper.message(messages.findById(a).orElseThrow()),replayed);}private Conversation owned(String u,String id){return conversations.findByIdAndUserId(id,u).orElseThrow(this::notFound);}private String hash(String v){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(v.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}private BusinessException notFound(){return new BusinessException("CONVERSATION_NOT_FOUND","会话不存在",HttpStatus.NOT_FOUND);}private BusinessException tripNotFound(){return new BusinessException("TRIP_NOT_FOUND","行程不存在",HttpStatus.NOT_FOUND);}private BusinessException validation(String m){return new BusinessException("VALIDATION_ERROR",m,HttpStatus.BAD_REQUEST);}private BusinessException unauthorized(){return new BusinessException("UNAUTHORIZED","需要身份认证",HttpStatus.UNAUTHORIZED);}record Prepared(String userMessageId,String assistantMessageId,ConsultationPrompt prompt,boolean replayed){}record PreparedStream(Prepared prepared,String streamId,boolean replayed){}private record Normalized(String original,String safe){}
+
+import com.travelassistant.common.exception.BusinessException;
+import com.travelassistant.consultation.ai.*;
+import com.travelassistant.consultation.api.ConsultationDtos.*;
+import com.travelassistant.consultation.security.*;
+import com.travelassistant.trip.*;
+import com.travelassistant.user.*;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.time.Instant;
+import java.util.*;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+@Service
+public class ConversationService {
+  private static final Set<MessageStatus> ACTIVE =
+      Set.of(MessageStatus.PENDING, MessageStatus.STREAMING);
+  private final ConversationRepository conversations;
+  private final MessageRepository messages;
+  private final MessageRequestRepository requests;
+  private final ConversationStreamRepository streams;
+  private final UserRepository users;
+  private final TripRepository trips;
+  private final ConversationMapper mapper;
+  private final ConsultationGateway gateway;
+  private final PrivacyRedactor privacy;
+  private final ContentSafetyPolicy safety;
+  private final OutputSafetyPolicy outputSafety;
+  private final TripContextSnapshotMapper tripContext;
+  private final ConsultationProperties properties;
+  private final RealtimeConsultationContext realtimeContext;
+  private final tools.jackson.databind.ObjectMapper json;
+  private final TransactionTemplate tx;
+
+  public ConversationService(
+      ConversationRepository c,
+      MessageRepository m,
+      MessageRequestRepository r,
+      ConversationStreamRepository streams,
+      UserRepository u,
+      TripRepository t,
+      ConversationMapper map,
+      ConsultationGateway g,
+      PrivacyRedactor p,
+      ContentSafetyPolicy s,
+      OutputSafetyPolicy output,
+      TripContextSnapshotMapper tripContext,
+      ConsultationProperties properties,
+      RealtimeConsultationContext realtimeContext,
+      tools.jackson.databind.ObjectMapper json,
+      PlatformTransactionManager manager) {
+    conversations = c;
+    messages = m;
+    requests = r;
+    this.streams = streams;
+    users = u;
+    trips = t;
+    mapper = map;
+    gateway = g;
+    privacy = p;
+    safety = s;
+    outputSafety = output;
+    this.tripContext = tripContext;
+    this.properties = properties;
+    this.realtimeContext = realtimeContext;
+    this.json = json;
+    tx = new TransactionTemplate(manager);
+  }
+
+  public ConversationView create(String user, String title, String tripId) {
+    return tx.execute(
+        status -> {
+          User owner = users.findById(user).orElseThrow(this::unauthorized);
+          Trip trip = null;
+          if (tripId != null) {
+            trip = trips.findByIdAndUserId(tripId, user).orElseThrow(this::tripNotFound);
+            if (trip.getCurrentVersion() == null)
+              throw new BusinessException("TRIP_NOT_READY", "行程尚未生成完成", HttpStatus.CONFLICT);
+          }
+          String normalized = title == null || title.isBlank() ? null : title.trim();
+          if (normalized != null && normalized.length() > 100) throw validation("title 过长");
+          return mapper.conversation(
+              conversations.save(new Conversation(owner, trip, normalized)), List.of());
+        });
+  }
+
+  public List<ConversationSummary> list(String user, int limit) {
+    return conversations
+        .findByUserIdOrderByUpdatedAtDescIdDesc(
+            user, PageRequest.of(0, Math.min(Math.max(limit, 1), 100)))
+        .stream()
+        .map(mapper::summary)
+        .toList();
+  }
+
+  public ConversationView get(String user, String id) {
+    return tx.execute(
+        status -> {
+          Conversation c = owned(user, id);
+          return mapper.conversation(
+              c,
+              messages.findByConversationIdAndRoleNotOrderByCreatedAtAscIdAsc(
+                  id, MessageRole.SYSTEM));
+        });
+  }
+
+  public TurnView ask(String user, String conversationId, String key, String raw) {
+    Prepared p = tx.execute(status -> prepare(user, conversationId, key, raw, "ANSWER"));
+    if (p.replayed())
+      return tx.execute(status -> turn(p.userMessageId(), p.assistantMessageId(), true));
+    try {
+      ConsultationResult result = gateway.answer(user, p.prompt());
+      outputSafety.check(result.content());
+      tx.executeWithoutResult(status -> complete(p.assistantMessageId(), result));
+      return tx.execute(status -> turn(p.userMessageId(), p.assistantMessageId(), false));
+    } catch (RuntimeException failure) {
+      String code =
+          failure instanceof BusinessException b
+              ? b.getCode()
+              : failure instanceof ConsultationException c
+                  ? c.getCode()
+                  : failure instanceof UnsafeContentException
+                      ? "CONTENT_REJECTED"
+                      : "AI_UNAVAILABLE";
+      tx.executeWithoutResult(status -> fail(p.assistantMessageId(), code));
+      if (failure instanceof BusinessException b) throw b;
+      if (failure instanceof UnsafeContentException u) throw u;
+      HttpStatus status =
+          "AI_TIMEOUT".equals(code)
+              ? HttpStatus.GATEWAY_TIMEOUT
+              : "AI_RATE_LIMITED".equals(code)
+                  ? HttpStatus.TOO_MANY_REQUESTS
+                  : HttpStatus.SERVICE_UNAVAILABLE;
+      throw new BusinessException(code, "AI 咨询暂时不可用", status);
+    }
+  }
+
+  PreparedStream prepareStream(String user, String conversation, String key, String raw) {
+    return tx.execute(
+        status -> {
+          Prepared prepared = prepare(user, conversation, key, raw, "STREAM");
+          if (prepared.replayed()) {
+            ConversationStream existing =
+                streams
+                    .findByAssistantMessageId(prepared.assistantMessageId())
+                    .orElseThrow(
+                        () ->
+                            new BusinessException(
+                                "MESSAGE_IN_PROGRESS", "流正在建立", HttpStatus.CONFLICT));
+            return new PreparedStream(prepared, existing.getId(), true);
+          }
+          Conversation c =
+              conversations.findByIdAndUserId(conversation, user).orElseThrow(this::notFound);
+          Message assistant = messages.findById(prepared.assistantMessageId()).orElseThrow();
+          assistant.streaming();
+          ConversationStream stream =
+              streams.save(
+                  new ConversationStream(
+                      c, assistant, Instant.now().plus(properties.eventRetention())));
+          streams.flush();
+          return new PreparedStream(prepared, stream.getId(), false);
+        });
+  }
+
+  void completeStream(String id, ConsultationResult result) {
+    tx.executeWithoutResult(status -> complete(id, result));
+  }
+
+  void failStream(String id, String code) {
+    tx.executeWithoutResult(status -> fail(id, code));
+  }
+
+  private Prepared prepare(String user, String id, String key, String raw, String operation) {
+    Conversation c = conversations.lockOwned(id, user).orElseThrow(this::notFound);
+    Normalized normalized = normalize(raw);
+    String hash = hash(normalized.original());
+    Optional<MessageRequest> existing =
+        requests.findByConversationIdAndOperationAndKey(id, operation, key);
+    if (existing.isPresent()) {
+      MessageRequest r = existing.get();
+      if (!r.getHash().equals(hash))
+        throw new BusinessException("IDEMPOTENCY_KEY_CONFLICT", "幂等键已用于其他内容", HttpStatus.CONFLICT);
+      MessageStatus state = r.getAssistantMessage().getStatus();
+      if (operation.equals("STREAM")
+          || state == MessageStatus.COMPLETED
+          || state == MessageStatus.FAILED)
+        return new Prepared(
+            r.getUserMessage().getId(), r.getAssistantMessage().getId(), null, true);
+      throw new BusinessException("MESSAGE_IN_PROGRESS", "消息仍在生成", HttpStatus.CONFLICT);
+    }
+    if (messages.existsByConversationIdAndStatusIn(id, ACTIVE))
+      throw new BusinessException("CONVERSATION_BUSY", "会话已有消息生成中", HttpStatus.CONFLICT);
+    TripVersion version = c.getTrip() == null ? null : c.getTrip().getCurrentVersion();
+    RealtimeConsultationContext.Result realtime =
+        realtimeContext.resolve(
+            user, c.getTrip() == null ? null : c.getTrip().getId(), normalized.safe());
+    ConsultationPrompt prompt = prompt(c, version, normalized.safe(), realtime.prompt());
+    String turn = UUID.randomUUID().toString();
+    Message um =
+        messages.save(
+            new Message(
+                c, turn, version, MessageRole.USER, normalized.safe(), MessageStatus.COMPLETED));
+    Message am =
+        messages.save(
+            new Message(c, turn, version, MessageRole.ASSISTANT, "", MessageStatus.PENDING));
+    if (!realtime.sources().isEmpty())
+      try {
+        String sourceJson = json.writeValueAsString(realtime.sources());
+        Instant updated =
+            realtime.sources().stream()
+                .map(x -> x.sourceUpdatedAt() == null ? x.retrievedAt() : x.sourceUpdatedAt())
+                .map(Instant::parse)
+                .max(Instant::compareTo)
+                .orElse(null);
+        am.sources(sourceJson, updated);
+      } catch (Exception ignored) {
+      }
+    messages.flush();
+    requests.save(new MessageRequest(c, operation, key, hash, um, am));
+    c.titleIfMissing(normalized.safe().substring(0, Math.min(40, normalized.safe().length())));
+    conversations.touch(id);
+    return new Prepared(um.getId(), am.getId(), prompt, false);
+  }
+
+  private ConsultationPrompt prompt(
+      Conversation c, TripVersion version, String current, String realtime) {
+    try {
+      List<ConsultationPrompt.PromptMessage> out = new ArrayList<>();
+      out.add(
+          new ConsultationPrompt.PromptMessage(
+              "system",
+              new ClassPathResource("prompts/consultation/v1/system.txt")
+                  .getContentAsString(StandardCharsets.UTF_8)));
+      if (version != null)
+        out.add(new ConsultationPrompt.PromptMessage("user", tripContext.map(version)));
+      List<Message> completed =
+          messages
+              .findByConversationIdAndRoleNotOrderByCreatedAtAscIdAsc(c.getId(), MessageRole.SYSTEM)
+              .stream()
+              .filter(m -> m.getStatus() == MessageStatus.COMPLETED)
+              .toList();
+      int start = Math.max(0, completed.size() - 12);
+      for (Message m : completed.subList(start, completed.size()))
+        out.add(
+            new ConsultationPrompt.PromptMessage(
+                m.getRole() == MessageRole.USER ? "user" : "assistant", safe(m.getContent())));
+      if (realtime != null) out.add(new ConsultationPrompt.PromptMessage("user", realtime));
+      out.add(new ConsultationPrompt.PromptMessage("user", current));
+      return new ConsultationPrompt(List.copyOf(out));
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private Normalized normalize(String raw) {
+    if (raw == null) throw validation("content 必填");
+    String value = raw.trim();
+    if (value.isEmpty()
+        || value.length() > 5000
+        || value.chars().anyMatch(ch -> Character.isISOControl(ch) && !Character.isWhitespace(ch)))
+      throw validation("content 无效");
+    safety.check(value);
+    return new Normalized(value, privacy.redact(value).content());
+  }
+
+  private String safe(String text) {
+    return privacy.redact(text == null ? "" : text).content();
+  }
+
+  private void complete(String id, ConsultationResult r) {
+    messages
+        .findById(id)
+        .orElseThrow()
+        .complete(r.content(), r.model(), r.inputTokens(), r.outputTokens());
+  }
+
+  private void fail(String id, String code) {
+    messages.findById(id).ifPresent(m -> m.fail(code));
+  }
+
+  private TurnView turn(String u, String a, boolean replayed) {
+    return new TurnView(
+        mapper.message(messages.findById(u).orElseThrow()),
+        mapper.message(messages.findById(a).orElseThrow()),
+        replayed);
+  }
+
+  private Conversation owned(String u, String id) {
+    return conversations.findByIdAndUserId(id, u).orElseThrow(this::notFound);
+  }
+
+  private String hash(String v) {
+    try {
+      return HexFormat.of()
+          .formatHex(
+              MessageDigest.getInstance("SHA-256").digest(v.getBytes(StandardCharsets.UTF_8)));
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private BusinessException notFound() {
+    return new BusinessException("CONVERSATION_NOT_FOUND", "会话不存在", HttpStatus.NOT_FOUND);
+  }
+
+  private BusinessException tripNotFound() {
+    return new BusinessException("TRIP_NOT_FOUND", "行程不存在", HttpStatus.NOT_FOUND);
+  }
+
+  private BusinessException validation(String m) {
+    return new BusinessException("VALIDATION_ERROR", m, HttpStatus.BAD_REQUEST);
+  }
+
+  private BusinessException unauthorized() {
+    return new BusinessException("UNAUTHORIZED", "需要身份认证", HttpStatus.UNAUTHORIZED);
+  }
+
+  record Prepared(
+      String userMessageId,
+      String assistantMessageId,
+      ConsultationPrompt prompt,
+      boolean replayed) {}
+
+  record PreparedStream(Prepared prepared, String streamId, boolean replayed) {}
+
+  private record Normalized(String original, String safe) {}
 }

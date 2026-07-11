@@ -1,1 +1,8 @@
-package com.travelassistant.consultation.ai;import org.springframework.boot.context.properties.EnableConfigurationProperties;import org.springframework.context.annotation.Configuration;@Configuration(proxyBeanMethods=false)@EnableConfigurationProperties(ConsultationProperties.class)public class ConsultationAiConfiguration{}
+package com.travelassistant.consultation.ai;
+
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(ConsultationProperties.class)
+public class ConsultationAiConfiguration {}

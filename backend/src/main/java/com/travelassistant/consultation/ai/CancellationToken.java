@@ -1,1 +1,25 @@
-package com.travelassistant.consultation.ai;import java.util.concurrent.atomic.*;public class CancellationToken{private final AtomicBoolean cancelled=new AtomicBoolean();private final AtomicReference<String>reason=new AtomicReference<>();public void cancel(){cancel("CLIENT_DISCONNECTED");}public void cancel(String code){reason.compareAndSet(null,code);cancelled.set(true);}public boolean isCancelled(){return cancelled.get();}public String reason(){return reason.get()==null?"CLIENT_DISCONNECTED":reason.get();}}
+package com.travelassistant.consultation.ai;
+
+import java.util.concurrent.atomic.*;
+
+public class CancellationToken {
+  private final AtomicBoolean cancelled = new AtomicBoolean();
+  private final AtomicReference<String> reason = new AtomicReference<>();
+
+  public void cancel() {
+    cancel("CLIENT_DISCONNECTED");
+  }
+
+  public void cancel(String code) {
+    reason.compareAndSet(null, code);
+    cancelled.set(true);
+  }
+
+  public boolean isCancelled() {
+    return cancelled.get();
+  }
+
+  public String reason() {
+    return reason.get() == null ? "CLIENT_DISCONNECTED" : reason.get();
+  }
+}

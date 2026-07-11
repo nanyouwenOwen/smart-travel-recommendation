@@ -15,25 +15,26 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestIdFilter extends OncePerRequestFilter {
-    public static final String HEADER = "X-Request-Id";
-    public static final String ATTRIBUTE = "requestId";
+  public static final String HEADER = "X-Request-Id";
+  public static final String ATTRIBUTE = "requestId";
 
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
-        String supplied = request.getHeader(HEADER);
-        String requestId = isValid(supplied) ? supplied : UUID.randomUUID().toString();
-        request.setAttribute(ATTRIBUTE, requestId);
-        response.setHeader(HEADER, requestId);
-        MDC.put(ATTRIBUTE, requestId);
-        try {
-            filterChain.doFilter(request, response);
-        } finally {
-            MDC.remove(ATTRIBUTE);
-        }
+  @Override
+  protected void doFilterInternal(
+      HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+      throws ServletException, IOException {
+    String supplied = request.getHeader(HEADER);
+    String requestId = isValid(supplied) ? supplied : UUID.randomUUID().toString();
+    request.setAttribute(ATTRIBUTE, requestId);
+    response.setHeader(HEADER, requestId);
+    MDC.put(ATTRIBUTE, requestId);
+    try {
+      filterChain.doFilter(request, response);
+    } finally {
+      MDC.remove(ATTRIBUTE);
     }
+  }
 
-    private boolean isValid(String requestId) {
-        return requestId != null && requestId.matches("[A-Za-z0-9._:-]{1,100}");
-    }
+  private boolean isValid(String requestId) {
+    return requestId != null && requestId.matches("[A-Za-z0-9._:-]{1,100}");
+  }
 }

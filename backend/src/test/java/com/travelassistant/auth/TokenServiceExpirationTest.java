@@ -15,20 +15,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 
 class TokenServiceExpirationTest {
-    @Test
-    void rejectsRefreshTokenAtExpiryBoundary() {
-        Instant now = Instant.parse("2026-01-01T00:00:00Z");
-        User user = new User("expiry@example.com", "hash", "Expiry");
-        RefreshToken expired = new RefreshToken(user, TokenService.hash("raw-token"), "family", now);
-        RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
-        when(repository.findByTokenHash(TokenService.hash("raw-token"))).thenReturn(Optional.of(expired));
-        AuthProperties properties = new AuthProperties("test", Duration.ofMinutes(5), Duration.ofDays(1),
-                "12345678901234567890123456789012");
-        TokenService service = new TokenService(mock(JwtEncoder.class), repository, properties,
-                Clock.fixed(now, ZoneOffset.UTC));
+  @Test
+  void rejectsRefreshTokenAtExpiryBoundary() {
+    Instant now = Instant.parse("2026-01-01T00:00:00Z");
+    User user = new User("expiry@example.com", "hash", "Expiry");
+    RefreshToken expired = new RefreshToken(user, TokenService.hash("raw-token"), "family", now);
+    RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
+    when(repository.findByTokenHash(TokenService.hash("raw-token")))
+        .thenReturn(Optional.of(expired));
+    AuthProperties properties =
+        new AuthProperties(
+            "test", Duration.ofMinutes(5), Duration.ofDays(1), "12345678901234567890123456789012");
+    TokenService service =
+        new TokenService(
+            mock(JwtEncoder.class), repository, properties, Clock.fixed(now, ZoneOffset.UTC));
 
-        assertThatThrownBy(() -> service.rotate("raw-token"))
-                .isInstanceOf(BusinessException.class)
-                .extracting("code").isEqualTo("INVALID_REFRESH_TOKEN");
-    }
+    assertThatThrownBy(() -> service.rotate("raw-token"))
+        .isInstanceOf(BusinessException.class)
+        .extracting("code")
+        .isEqualTo("INVALID_REFRESH_TOKEN");
+  }
 }

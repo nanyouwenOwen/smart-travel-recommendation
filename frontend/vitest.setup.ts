@@ -1,2 +1,2 @@
-import { afterEach } from 'vitest'
-afterEach(()=>sessionStorage.clear())
+import { afterEach } from "vitest";
+afterEach(() => sessionStorage.clear());

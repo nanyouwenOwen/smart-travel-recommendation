@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class TravelAssistantApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(TravelAssistantApplication.class, args);
-    }
+  public static void main(String[] args) {
+    SpringApplication.run(TravelAssistantApplication.class, args);
+  }
 }
