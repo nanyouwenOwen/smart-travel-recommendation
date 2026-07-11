@@ -45,6 +45,7 @@
 ├── frontend/            # Vue 单页应用
 ├── docs/
 │   ├── api-contract.md  # 接口通用约束与协作规则
+│   ├── data-model.md    # 核心数据模型说明
 │   └── openapi.yaml     # 可被工具读取的接口契约
 ├── docker-compose.yml   # 本地 MySQL
 ├── README.md
@@ -52,6 +53,18 @@
 ```
 
 ## 本地启动
+
+### GitHub Codespaces（推荐用于在线演示）
+
+在 GitHub 仓库点击 `Code → Codespaces → Create codespace on main`。容器会自动安装 Java 21、Maven、Node.js 24 和 Docker，并安装项目依赖。
+
+初始化完成后，在 Codespaces 终端运行：
+
+```bash
+bash scripts/dev.sh
+```
+
+端口 `5173`（前端）和 `8080`（API）会自动转发。前端端口配置为公开访问，适合临时演示；Codespace 停止后演示地址也会停止。AI 密钥应添加到 Codespaces Secrets，禁止写入仓库。
 
 ### 1. 启动数据库
 
@@ -98,8 +111,10 @@ npm run dev
 
 - 人类可读约束见 [`docs/api-contract.md`](docs/api-contract.md)。
 - 机器可读契约见 [`docs/openapi.yaml`](docs/openapi.yaml)，它是接口字段的单一事实来源。
+- 数据关系和持久化规则见 [`docs/data-model.md`](docs/data-model.md)。
 - 新增或修改接口时，先更新 OpenAPI，再修改后端与前端类型，并在 `TODO.md` 更新进度。
 - 提交前至少执行前端类型检查与构建、后端测试。
+- GitHub Actions 会在推送和 Pull Request 时自动执行上述检查。
 
 ## 当前进度
 

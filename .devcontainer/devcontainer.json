@@ -1,0 +1,48 @@
+{
+  "name": "智能旅游助手",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "21",
+      "installMaven": true
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": true,
+      "dockerDashComposeVersion": "v2"
+    }
+  },
+  "forwardPorts": [5173, 8080],
+  "portsAttributes": {
+    "5173": {
+      "label": "智能旅游助手前端",
+      "onAutoForward": "openPreview",
+      "visibility": "public"
+    },
+    "8080": {
+      "label": "智能旅游助手 API",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "docker compose up -d mysql",
+  "remoteEnv": {
+    "DB_URL": "jdbc:mysql://localhost:3306/travel_assistant?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC",
+    "DB_USERNAME": "travel",
+    "DB_PASSWORD": "travel"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Vue.volar",
+        "vscjava.vscode-java-pack",
+        "vmware.vscode-spring-boot",
+        "redhat.vscode-yaml"
+      ]
+    }
+  }
+}
