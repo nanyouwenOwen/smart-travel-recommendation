@@ -23,7 +23,9 @@
 
 运行 `scripts/check.sh`。浏览器和 MySQL 真栈由 GitHub CI 执行；Compose smoke 覆盖注册、地点、行程 READY、SSE、三服务健康、非 root、备份到新库恢复、k6、后端/MySQL 重启。安全 job 使用 Trivy；release-candidate 生成 JAR、前端 tar、OpenAPI、双 CycloneDX SBOM、SHA256 和 Git SHA。
 
-当前已核验的 Round 06 候选证据：提交 `b978503`；GitHub Actions run `29164101865` 七个 job 全绿；Actions artifact `smart-travel-assistant-0.1.0-rc`；artifact digest `sha256:c64e81a442cc716cae8008d69c77c8ff2f8e4d36ff899b029bf889e0644c1640`；Round 06 独立审核最终 `PASS`。Round 07 治理文档的提交 SHA、对应 CI run 与候选产物尚待本轮推送后生成，不得冒充为已验证。后续模型不得只引用历史结论；每次修改都按 `AGENTS.md` 重新产生当前提交对应的计划、测试、审核与 CI 证据。
+当前已核验的 Round 06 候选证据：提交 `b978503`；GitHub Actions run `29164101865` 七个 job 全绿；Actions artifact `smart-travel-assistant-0.1.0-rc`；artifact digest `sha256:c64e81a442cc716cae8008d69c77c8ff2f8e4d36ff899b029bf889e0644c1640`；Round 06 独立审核最终 `PASS`。
+
+Round 07 治理与交接候选证据：提交 `82d0f89`；[GitHub Actions run `29164801003`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29164801003) 七个 job 全绿；Actions artifact `smart-travel-assistant-0.1.0-rc`；artifact digest `sha256:2d25af42044d10211c6cbc8c4a8859ee9ecb18ce440b86875168bfad3293ef67`；Round 07 独立审核最终 `PASS`。本段证据同步文档将作为后续轻量提交，其本身的 CI 仍需另行通过；后续模型不得只引用历史结论，每次修改都按 `AGENTS.md` 产生当前提交对应的计划、测试、审核与 CI 证据。
 
 ## 接手步骤
 

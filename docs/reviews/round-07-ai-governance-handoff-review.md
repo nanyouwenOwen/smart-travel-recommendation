@@ -85,3 +85,15 @@
 - `scripts/check.sh` 的本轮完整结果沿用首审后同一工作树实跑证据：OpenAPI 有效（37 个既有 warning）、前端 18 文件/43 测试、构建及覆盖率门通过、后端 Maven verify/格式/静态分析通过。后续修正仅涉及 Markdown，没有改变生产代码或测试配置。
 
 当前没有本地阻断项。实施方可以提交并推送普通文档/配置变更，然后必须等待**该 Round 07 提交对应**的 GitHub Actions required jobs 全绿并追加 commit/run 证据；在此之前不得把本轮交付描述为最终 CI 完成。干净 Codespaces、真实 DeepSeek/MiMo 账号验证和正式 tag/Release 继续是明确人工动作，不影响本次本地 PASS，也不得被标成已完成。
+
+## 远程 CI 与证据同步复核（2026-07-12）
+
+**PASS**。
+
+- 已直接核验 [GitHub Actions run `29164801003`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29164801003)：对应提交 `82d0f89`，整体状态 `Success`；`openapi`、`frontend`、`backend`、`e2e`、`container-smoke`、`security`、`release-candidate` 七个 job 均成功，Playwright 7 项通过。
+- 页面列出的 artifact 为 `smart-travel-assistant-0.1.0-rc`，大小 53.7 MB，digest 为 `sha256:2d25af42044d10211c6cbc8c4a8859ee9ecb18ce440b86875168bfad3293ef67`；与 `PROJECT_HANDOFF.md` 新增记录逐字一致。
+- `AI_CHANGE_LOG.md` 对提交、run、七个 job 和 artifact 引用准确；没有把 Round 06 证据混成 Round 07，也没有把真实供应商、Codespaces 或正式 Release 写成已完成。
+- 本次证据同步仅修改 `PROJECT_HANDOFF.md` 与 `AI_CHANGE_LOG.md`；`git diff --check`、两文件本地 Markdown 链接和 production merged Compose config 复核通过，没有新增 secret 或运行时变更。
+- 两份文档均如实说明证据同步提交自身仍需对应 CI，未用 `82d0f89` 的成功结果冒充未提交文档修改的结果。
+
+Round 07 的治理实现提交及其远程 CI 证据均已闭环。证据同步提交推送后仍应等待其自身 required jobs；这属于已经明确记录的可追溯交付步骤，不改变本次轻量复核 PASS。仍不得在无负责人明确授权时创建 tag/GitHub Release 或勾选“发布 MVP”。
