@@ -15,4 +15,4 @@
 - 触发：纯文档证据提交 `3fe06a6` 的 CI run `29164981696` 中 `container-smoke` 非确定性失败，导致 `release-candidate` 跳过；紧邻且业务代码相同的 run `29164801003` 全绿。
 - 实施：将 Compose smoke 拆为可定位阶段，保留原始/信号退出码，失败时输出有界容器诊断；仅对启动、异步行程、后端与数据库恢复做有限轮询，登录恢复必须同时满足 HTTP 2xx 和非空 token，性能、SSE、备份数据与非 root 断言未放宽。
 - 审核修正：首审发现行程畸形/未知状态被错当可重试且脚本丢失可执行位；首次复审又通过 mock 发现 OR-list 会禁用函数内 `errexit`。实施方恢复 100755，对 FAILED/畸形/未知状态显式返回失败；同一 reviewer 定向 mock 复审最终 `PASS`。
-- 本地证据：`bash -n`、`git diff --check`、Compose config 和 `scripts/check.sh` 通过；本机 Docker socket 无权限，该失败路径实际保留非零状态并输出诊断。完整容器成功路径必须由本轮提交对应 GitHub Actions 验证。
+- 验证证据：`bash -n`、`git diff --check`、Compose config 和 `scripts/check.sh` 通过；本机 Docker socket 无权限，该失败路径实际保留非零状态并输出诊断。提交 `4016764` 的 GitHub Actions run `29165356764` 七个 job 全绿，含完整 container smoke 与 release candidate；artifact digest 见 `PROJECT_HANDOFF.md`。

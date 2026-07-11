@@ -52,3 +52,16 @@
 - 第二次修正复审：相同 mock 下 `FAILED`、非 JSON、未知状态分别返回 1 且各只有一次错误，`READY` 返回 0；`bash -n`、`git diff --check` 和 executable bit 再次 PASS。实现审核最终结论更新为 PASS。
 
 本机 Docker daemon 无权限，因此 reviewer 未把本地成功容器 smoke 作为证据，也不因该环境限制单独判定失败。实施方已在失败路径实跑并确认诊断与清理；完整成功路径必须由推送后、准确提交对应的 GitHub Actions `container-smoke` 证明。这里的 PASS 允许进入提交和 CI 阶段，不替代计划完成定义中的全部 required/dependent jobs 绿色证据；若 CI 失败，必须回到同一修正—复审循环。
+
+## 远程最终复核
+
+**最终结论：PASS**
+
+同一 reviewer 于证据补录阶段核验了公开的 [GitHub Actions run `29165356764`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29165356764)：
+
+- 页面标题、提交链接和完整 SHA 对应 `40167645d58fc9ee2ce1bc84f7c3c2ce96230e88`（短 SHA `4016764`，`ci: harden compose smoke diagnostics`），没有用旧绿色 run 替代本轮提交。
+- run 总状态为 completed successfully；`openapi`、`frontend`、`backend`、`e2e`、`container-smoke`、`security`、`release-candidate` 七个 job 均显示完成且成功。
+- 页面列出 artifact `smart-travel-assistant-0.1.0-rc`，digest 为 `sha256:0d18f4cf11ff673b4869f71a85bebf899bf17594b8ddae9149cb334a8dd05b64`。
+- `docs/ai-governance/PROJECT_HANDOFF.md` 与 `docs/ai-governance/AI_CHANGE_LOG.md` 补录的提交、run、七 job 全绿及 artifact digest 与公开页面一致；未发现把 tag、GitHub Release 或部署误写为已完成。
+
+因此计划要求的准确提交成功容器路径与全部 required/dependent jobs 证据已经补齐，Round 08 审核测试最终全部通过。证据文档补录本身仍应按仓库流程提交并等待对应 CI；若该纯文档提交出现新的 required job 失败，应重新进入修正—复审循环。
