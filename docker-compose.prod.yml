@@ -8,6 +8,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
   backend:
     environment:
+      SPRING_PROFILES_ACTIVE: prod
       DB_USERNAME: ${MYSQL_USER:?set MYSQL_USER}
       DB_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?set a random JWT_SECRET of at least 32 bytes}
