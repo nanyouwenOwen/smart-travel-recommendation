@@ -383,6 +383,11 @@ paths:
       responses:
         '200':
           description: SSE 事件流，事件类型为 ack、delta、done、error
+          headers:
+            X-Stream-Id:
+              required: true
+              description: 建流成功后立即返回的流标识，可在 ack 到达前用于显式取消
+              schema: { type: string, format: uuid }
           content:
             text/event-stream:
               schema: { type: string }

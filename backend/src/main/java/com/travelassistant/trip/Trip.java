@@ -32,6 +32,7 @@ public class Trip extends SoftDeletableEntity {
     public void publish(TripVersion version){ currentVersion=version; status=TripStatus.READY; failureCode=null; }
     public void fail(String code){ if(currentVersion==null) status=TripStatus.FAILED; failureCode=code; }
     public void beginGeneration(){ if(currentVersion==null) status=TripStatus.GENERATING; failureCode=null; }
+    public void beginAdjustment(){ failureCode=null; }
     public void replaceRequirements(String destination,LocalDate startDate,int days,int travelers,BigDecimal budgetAmount,String currency,String timezone,String preferencesJson,String requirements){this.destination=destination;this.startDate=startDate;this.days=(byte)days;this.travelers=(short)travelers;this.budgetAmount=budgetAmount;this.currency=currency;this.timezone=timezone;this.preferencesJson=preferencesJson;this.additionalRequirements=requirements;}
     public User getUser(){return user;} public String getDestination(){return destination;} public LocalDate getStartDate(){return startDate;}
     public int getDays(){return days;} public int getTravelers(){return travelers;} public BigDecimal getBudgetAmount(){return budgetAmount;}

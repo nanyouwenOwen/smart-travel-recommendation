@@ -18,6 +18,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -66,6 +67,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ApiErrorResponse> accessDenied(AccessDeniedException exception, HttpServletRequest request) {
         return response(HttpStatus.FORBIDDEN, new ApiError("FORBIDDEN", "无权执行此操作"), request);
+    }
+
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    void disconnectedClient(AsyncRequestNotUsableException exception) {
+        log.debug("Async client disconnected before response completed");
     }
 
     @ExceptionHandler(Exception.class)

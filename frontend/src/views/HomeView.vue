@@ -1,11 +1,2 @@
-<template>
-  <main class="shell">
-    <section class="hero">
-      <p class="eyebrow">AI TRAVEL PLANNER</p>
-      <h1>智能旅游助手</h1>
-      <p class="description">根据目的地、预算和时间，生成属于你的详细旅行计划。</p>
-      <button type="button" disabled>开始规划（即将开放）</button>
-    </section>
-  </main>
-</template>
-
+<script setup lang="ts">import { useAuthStore } from '@/stores/auth';const auth=useAuthStore()</script>
+<template><main class="home"><header><RouterLink class="brand" to="/">旅途智囊</RouterLink><nav><RouterLink v-if="!auth.authenticated" to="/login">登录</RouterLink><RouterLink class="button" :to="auth.authenticated?'/trips/new':'/register'">开始规划</RouterLink></nav></header><section class="hero"><div><p class="eyebrow">AI TRAVEL PLANNER</p><h1 tabindex="-1">把想去的地方，<em>变成可出发的行程。</em></h1><p class="description">输入目的地、预算和时间，AI 为你整理逐日安排、预算分配，并在旅途中随时回答问题。</p><RouterLink class="button large" :to="auth.authenticated?'/trips/new':'/register'">免费创建行程 →</RouterLink><p class="fine">AI 内容为估算建议，不代表实时价格、天气或营业信息。</p></div><div class="postcard" aria-label="示例行程卡片"><span>KYOTO · 5 DAYS</span><h2>京都慢旅行</h2><ol><li>伏见稻荷清晨散步</li><li>祇园与茶屋文化</li><li>岚山竹林与河畔</li></ol></div></section><section class="steps"><article><b>01</b><h2>说出你的需求</h2><p>目的地、日期、预算与偏好。</p></article><article><b>02</b><h2>获得详细规划</h2><p>逐日时间线和分类预算一目了然。</p></article><article><b>03</b><h2>随时对话调整</h2><p>保留历史版本，放心尝试新方案。</p></article></section></main></template>

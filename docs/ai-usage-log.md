@@ -30,6 +30,15 @@
 - 验证：`mvn verify` 通过，38 个测试、0 失败、0 错误；OpenAPI 0 error；第三轮最终独立复审 PASS。
 - 证据：`docs/plans/round-03-ai-consultation.md` 及后续 `docs/reviews/round-03-ai-consultation-review.md`。
 
+### 2026-07-11 - 完整前端应用
+
+- AI 贡献：独立制定 Round 04 计划，实施 Vue 页面、Pinia 状态、认证刷新、行程与版本交互、SSE 聊天、响应式样式、Vitest 和 Playwright 真栈验收。
+- 任务摘要：把占位首页升级为可在 Codespaces 远程演示的完整 MVP 前端，并消费现有 OpenAPI/真实后端。
+- 审核与决定：第一轮独立审核判定 FAIL，提出调整版本轮询、幂等键、SSE 取消竞态、API 超时、路由竞态、表单、移动可访问性、E2E/覆盖率和文档等 12 项阻断；主开发终端接受并逐项修正。
+- 问题与修正：调整轮询改为等待版本号超过基线；未知网络结果复用同一幂等键；SSE 使用 29 秒可中断/可见性感知重放并校验事件归属；建流响应增加 `X-Stream-Id` 以支持 ack 前取消；加入请求世代、超时、移动菜单、焦点对话框和覆盖率门禁。
+- 验证：type-check、37 项 Vitest、覆盖率门禁和生产构建通过；7 项真实浏览器测试覆盖行程/版本/咨询重放与取消/键盘/移动/错误路径；第五轮独立复审 PASS。
+- 证据：`docs/plans/round-04-frontend-application.md`、`frontend/e2e/`、`.github/workflows/ci.yml`。
+
 ## 结果摘要
 
 - 主要 AI 贡献：需求拆解、契约设计、后端实现、测试、故障诊断、独立代码审核和文档同步。

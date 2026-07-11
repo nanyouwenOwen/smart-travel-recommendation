@@ -96,6 +96,27 @@ npm run dev
 
 前端默认地址为 `http://localhost:5173`。开发服务器将 `/api` 代理到后端。
 
+登录后可使用“我的行程 / 新建规划 / AI 咨询”导航完成规划创建、生成进度查看、逐日安排与预算展示、自然语言调整、历史版本恢复，以及支持断线重放和显式取消的流式咨询。页面从 320px 宽度起可操作，移动端通过“菜单”按钮展开导航。
+
+前端仅把 Access Token 保存在内存，把轮换后的 Refresh Token 保存在当前标签页的 `sessionStorage`，用于刷新页面后恢复登录态；关闭浏览器会话即清除。由于当前后端尚未提供 HttpOnly Cookie 模式，这是 MVP 的安全折中：项目不使用 `v-html` 或远程脚本，后续应优先迁移为 Secure、HttpOnly、SameSite Cookie。
+
+### 4. 验证前端
+
+```bash
+cd frontend
+npm run type-check
+npm run test:coverage
+npm run build
+```
+
+真实浏览器端到端测试会启动 Spring Boot 和 Vite，并使用真实 MySQL/Flyway 与 Stub AI（不拦截业务 API）：
+
+```bash
+bash scripts/e2e.sh
+```
+
+覆盖注册与登录恢复、受保护路由、行程创建、版本调整/恢复、SSE 断线重放、显式取消、空状态、404 和移动导航。失败时 Playwright 会保留 trace/screenshot 供排查。
+
 ## 配置
 
 | 环境变量 | 默认值 | 说明 |
@@ -119,6 +140,7 @@ npm run dev
 | `CONSULTATION_REQUEST_TIMEOUT` / `CONSULTATION_TOTAL_TIMEOUT` | `PT45S` / `PT60S` | 单次读取及完整咨询截止时间 |
 | `CONSULTATION_DISCONNECT_GRACE` | `PT30S` | SSE 断线后的手动重连宽限期 |
 | `CONSULTATION_EVENT_RETENTION` | `PT10M` | SSE 事件重放保留时间 |
+| `CONSULTATION_STUB_CHUNK_DELAY` | `PT0S` | 仅 Stub 咨询的分片延迟；E2E 用于稳定验证重连/取消 |
 | `JWT_SECRET` | 仅本地有开发默认值 | JWT HMAC 密钥，生产环境至少 32 字节且必须设置 |
 | `JWT_ISSUER` | `smart-travel-assistant` | JWT 签发者 |
 | `ACCESS_TOKEN_TTL` | `PT15M` | Access Token 有效期 |
@@ -160,4 +182,4 @@ npm run dev
 
 ## 当前进度
 
-详细任务和勾选状态见 [`TODO.md`](TODO.md)。目前已完成项目骨架、用户认证、智能行程规划后端和 AI 旅游咨询后端，下一阶段实现完整前端交互。
+详细任务和勾选状态见 [`TODO.md`](TODO.md)。目前已完成项目骨架、用户认证、智能行程规划、AI 旅游咨询和完整前端交互；外部实时数据与最终交付加固仍在后续阶段。

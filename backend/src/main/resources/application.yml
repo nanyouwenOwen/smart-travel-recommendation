@@ -58,3 +58,4 @@ app:
     max-attempts: ${CONSULTATION_MAX_ATTEMPTS:2}
     event-retention: ${CONSULTATION_EVENT_RETENTION:PT10M}
     disconnect-grace: ${CONSULTATION_DISCONNECT_GRACE:PT30S}
+    stub-chunk-delay: ${CONSULTATION_STUB_CHUNK_DELAY:PT0S}

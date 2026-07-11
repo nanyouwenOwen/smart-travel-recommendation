@@ -7,6 +7,9 @@
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
 frontend/.env.local
 frontend/.env.*.local
 
@@ -16,4 +19,3 @@ backend/.env
 
 # Runtime
 .env
-

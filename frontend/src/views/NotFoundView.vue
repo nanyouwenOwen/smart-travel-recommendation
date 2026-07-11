@@ -1,0 +1,1 @@
+<template><section class="page narrow"><p class="eyebrow">404</p><h1 tabindex="-1">这条路线不存在</h1><p class="muted">返回熟悉的地方，再规划下一程。</p><RouterLink class="button" to="/">返回首页</RouterLink></section></template>

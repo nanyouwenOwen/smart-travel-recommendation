@@ -118,7 +118,7 @@ data: {"messageId":"...","usage":{"inputTokens":120,"outputTokens":80}}
 - `done`：生成成功结束
 - `error`：流内错误；发出后连接结束
 
-所有业务事件均有十进制 SSE `id`。`ack` 数据包含 `streamId/userMessageId/assistantMessageId/eventId`；`delta` 包含 `streamId/messageId/sequence/content`，其中 sequence 与 SSE id 一致；`done` 包含 `streamId/messageId/status/usage/replayed`；`error` 包含 `streamId/code/message/retryable/final`。流响应设置 `Cache-Control: no-cache, no-store` 和 `X-Accel-Buffering: no`。
+所有业务事件均有十进制 SSE `id`。`ack` 数据包含 `streamId/userMessageId/assistantMessageId/eventId`；`delta` 包含 `streamId/messageId/sequence/content`，其中 sequence 与 SSE id 一致；`done` 包含 `streamId/messageId/status/usage/replayed`；`error` 包含 `streamId/code/message/retryable/final`。流响应设置 `Cache-Control: no-cache, no-store` 和 `X-Accel-Buffering: no`。首次建流响应还返回 `X-Stream-Id` 头，客户端可在 `ack` 到达前启用显式取消，该值必须与后续 `ack.streamId` 一致。
 
 服务端每 15 秒发送注释心跳 `: ping`。客户端断开后有 30 秒重连宽限；宽限内 Provider 可继续生成并将安全事件写入重放日志，超时无人连接才取消。客户端必须按事件累加内容，收到 `done` 后以服务端消息详情为最终状态。SSE 已开始后发生的错误用 `error` 事件表达，不再依赖 HTTP 状态码。
 

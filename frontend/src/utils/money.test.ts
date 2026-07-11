@@ -1,0 +1,2 @@
+import { describe,expect,it } from 'vitest';import { formatMoney,categoryLabel } from './money'
+describe('money display',()=>{it('keeps the server decimal string unchanged',()=>{expect(formatMoney({amount:'9007199254740993.01',currency:'CNY'})).toBe('CNY 9007199254740993.01');expect(categoryLabel.FOOD).toBe('餐饮')});it('shows a placeholder for missing amounts',()=>expect(formatMoney()).toBe('—'))})
