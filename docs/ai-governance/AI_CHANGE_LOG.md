@@ -23,3 +23,9 @@
 - 实施：将发布清单前五项与已验证的 `4016764`/`29165356764` 和 `2eb538b`/`29165523778` 证据对齐，更新 MVP/备份恢复报告、CHANGELOG、发布说明和交接入口，不修改产品实现或门禁。
 - 首审结论：`FAIL`。审核发现 Trivy `--ignore-unfixed` 和普通 `mvn verify` 不能证明“无未处置 High/Critical”；Actions artifact 下载需认证并返回 HTTP 401，而既有审核没有解压验证其 `GIT_SHA`/文件清单/校验和。实施方撤回这两项勾选和过度声明，留待新实现轮次建立正向证据。
 - 人工边界：用户尚未授权 `v0.1.0` tag/GitHub Release，因此授权清单项和 `TODO.md` 的“发布 MVP”保持未完成；本轮也不冒充 Codespaces 或真实 DeepSeek/MiMo 验收。
+
+## 2026-07-12 - 安全与候选产物正向门禁
+
+- 触发：Round 09 审核证明旧 security job 忽略 unfixed 漏洞，且无认证审核无法下载 artifact 核对内部绑定，发布清单第 2/5 项因此不成立。
+- 实施：security job 先从当前 checkout 打包实际后端 JAR，再用固定 Trivy 0.58.2 对所有 High/Critical（包含无修复版本项）阻断；secret 扫描改为仅扫描 `git archive HEAD` 的受版本控制源文件。新增候选校验脚本，上传前验证固定文件集、完整 Git SHA、不自包含的 SHA-256 清单、双 CycloneDX SBOM 和 JAR/tar 可读性，并写入脱敏 Actions summary。
+- 本地证据：完整 `scripts/check.sh`、Shell 语法和 diff check 通过；实施与独立 reviewer 均重建候选并正向通过，reviewer 对删除/置空/SHA 错误/篡改/自包含清单/坏 SBOM/坏 JAR/坏 tar/额外文件 9 类负向用例均确认非零退出，Round 10 实现审核 `PASS`。实际 Trivy 数据库与 JAR 扫描结果待本轮准确提交 CI 核验。
