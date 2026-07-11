@@ -1,5 +1,14 @@
 # 核心数据模型
 
+## 实时数据实体（V6）
+
+- `location_references`：内部 UUID、provider/provider_ref 唯一键、规范名称、WGS84 经纬度（DECIMAL）、IANA 时区、抓取/源更新时间及过期时间。Trip 通过 nullable 外键绑定。
+- `external_data_cache`：只保存 SHA-256 cache key、provider、能力类型、受限 JSON payload、fresh/stale 时间边界和稳定失败码；不保存 Token、密钥或第三方原始错误。
+- `trips.destination_location_id`：兼容性 nullable 外键；历史行程不会静默绑定同名地点。
+- `messages.source_references/data_updated_at`：为咨询来源持久化预留；来源只记录该 turn 实际使用的数据，不随缓存刷新漂移。
+
+默认缓存策略：地点 7 天；天气 fresh 30 分钟、stale-if-error 6 小时；景点 fresh 6 小时、stale-if-error 7 天。超过 stale window 不再展示。
+
 数据库结构以 Flyway 迁移文件为事实来源。当前模型围绕“行程版本不可覆盖”和“咨询上下文可追溯”设计。
 
 ## 主要关系

@@ -3,6 +3,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import './styles/main.css'
+import './styles/realtime.css'
 import './styles/responsive.css'
 import { useAuthStore } from './stores/auth'
 

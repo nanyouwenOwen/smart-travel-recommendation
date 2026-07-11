@@ -5,6 +5,7 @@ import com.travelassistant.user.User;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import com.travelassistant.realtime.location.LocationReference;
 import org.hibernate.annotations.SQLRestriction;
 
 @Entity @Table(name="trips") @SQLRestriction("deleted_at IS NULL")
@@ -22,6 +23,7 @@ public class Trip extends SoftDeletableEntity {
     @Enumerated(EnumType.STRING) @Column(nullable=false,length=20) private TripStatus status;
     @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="current_version_id") private TripVersion currentVersion;
     @Column(name="failure_code",length=64) private String failureCode;
+    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="destination_location_id") private LocationReference destinationLocation;
     protected Trip() {}
     public Trip(User user,String destination,LocalDate startDate,int days,int travelers,BigDecimal budgetAmount,
                 String currency,String timezone,String preferencesJson,String requirements) {
@@ -34,9 +36,11 @@ public class Trip extends SoftDeletableEntity {
     public void beginGeneration(){ if(currentVersion==null) status=TripStatus.GENERATING; failureCode=null; }
     public void beginAdjustment(){ failureCode=null; }
     public void replaceRequirements(String destination,LocalDate startDate,int days,int travelers,BigDecimal budgetAmount,String currency,String timezone,String preferencesJson,String requirements){this.destination=destination;this.startDate=startDate;this.days=(byte)days;this.travelers=(short)travelers;this.budgetAmount=budgetAmount;this.currency=currency;this.timezone=timezone;this.preferencesJson=preferencesJson;this.additionalRequirements=requirements;}
+    public void bindDestinationLocation(LocationReference location){this.destinationLocation=location;}
     public User getUser(){return user;} public String getDestination(){return destination;} public LocalDate getStartDate(){return startDate;}
     public int getDays(){return days;} public int getTravelers(){return travelers;} public BigDecimal getBudgetAmount(){return budgetAmount;}
     public String getCurrency(){return currency;} public String getTimezone(){return timezone;} public String getPreferencesJson(){return preferencesJson;}
     public String getAdditionalRequirements(){return additionalRequirements;} public TripStatus getStatus(){return status;}
     public TripVersion getCurrentVersion(){return currentVersion;} public String getFailureCode(){return failureCode;}
+    public LocationReference getDestinationLocation(){return destinationLocation;}
 }

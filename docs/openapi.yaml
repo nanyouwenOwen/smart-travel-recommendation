@@ -11,6 +11,7 @@ tags:
   - name: Auth
   - name: Trips
   - name: Conversations
+  - name: Realtime
 paths:
   /health:
     get:
@@ -120,6 +121,46 @@ paths:
               schema: { $ref: '#/components/schemas/UserResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /locations/search:
+    get:
+      tags: [Realtime]
+      operationId: searchLocations
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 120 } }
+        - { name: language, in: query, schema: { type: string, minLength: 2, maxLength: 35, default: zh-CN } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 10, default: 5 } }
+      responses:
+        '200':
+          description: 地点搜索结果（仅允许用户显式提交搜索）
+          content: { application/json: { schema: { $ref: '#/components/schemas/LocationSearchResponse' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /trips/{tripId}/realtime/weather:
+    get:
+      tags: [Realtime]
+      operationId: getTripWeather
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200': { description: 行程日期天气, content: { application/json: { schema: { $ref: '#/components/schemas/WeatherResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /trips/{tripId}/realtime/places:
+    get:
+      tags: [Realtime]
+      operationId: getTripPlaces
+      parameters:
+        - { $ref: '#/components/parameters/TripId' }
+        - { name: category, in: query, schema: { type: string, enum: [ATTRACTION], default: ATTRACTION } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 10 } }
+      responses:
+        '200': { description: 附近景点与原始营业时间, content: { application/json: { schema: { $ref: '#/components/schemas/PlaceResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /trips:
     get:
       tags: [Trips]
@@ -590,6 +631,7 @@ components:
           items: { type: string, minLength: 1, maxLength: 50 }
         timezone: { type: string, examples: [Asia/Shanghai] }
         additionalRequirements: { type: string, maxLength: 2000 }
+        destinationLocationId: { type: string, format: uuid }
     UpdateTripRequest:
       $ref: '#/components/schemas/CreateTripRequest'
     TripSummary:
@@ -645,6 +687,7 @@ components:
             warnings: { type: array, items: { type: string } }
             itinerary: { type: array, items: { $ref: '#/components/schemas/ItineraryDay' } }
             budgetBreakdown: { $ref: '#/components/schemas/BudgetBreakdown' }
+            destinationLocation: { $ref: '#/components/schemas/Location' }
     BudgetCategoryAmount:
       type: object
       required: [category, amount]
@@ -733,6 +776,9 @@ components:
         errorCode: { type: string }
         createdAt: { type: string, format: date-time }
         completedAt: { type: string, format: date-time }
+        sources: { type: array, items: { $ref: '#/components/schemas/DataSourceReference' } }
+        dataUpdatedAt: { type: string, format: date-time }
+        freshness: { type: string, enum: [FRESH, STALE, UNAVAILABLE] }
     Conversation:
       type: object
       required: [id, createdAt, updatedAt, messages]
@@ -830,6 +876,103 @@ components:
         message: { type: string }
         retryable: { type: boolean }
         final: { type: boolean }
+    DataSourceReference:
+      type: object
+      required: [provider, label, sourceUrl, license, retrievedAt, freshness]
+      properties:
+        provider: { type: string, enum: [DEMO_STUB, OPENSTREETMAP_NOMINATIM, OPENSTREETMAP_OVERPASS, OPEN_METEO, TRANSITOUS] }
+        label: { type: string }
+        sourceUrl: { type: string, format: uri }
+        license: { type: string }
+        retrievedAt: { type: string, format: date-time }
+        sourceUpdatedAt: { type: string, format: date-time }
+        freshness: { type: string, enum: [FRESH, STALE, UNAVAILABLE] }
+    Location:
+      type: object
+      required: [id, name, displayName, latitude, longitude, timezone, sources]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        displayName: { type: string }
+        countryCode: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        timezone: { type: string }
+        sources: { type: array, items: { $ref: '#/components/schemas/DataSourceReference' } }
+    LocationSearchResult:
+      type: object
+      required: [locationId, name, displayName, latitude, longitude, timezone, type, sources]
+      properties:
+        locationId: { type: string, format: uuid }
+        name: { type: string }
+        displayName: { type: string }
+        countryCode: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        timezone: { type: string }
+        type: { type: string }
+        sources: { type: array, items: { $ref: '#/components/schemas/DataSourceReference' } }
+    LocationSearchResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/LocationSearchResult' } }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    WeatherDay:
+      type: object
+      required: [date, weatherCode, condition]
+      properties:
+        date: { type: string, format: date }
+        weatherCode: { type: integer }
+        condition: { type: string }
+        temperatureMax: { type: number }
+        temperatureMin: { type: number }
+        precipitationProbability: { type: integer }
+        precipitationAmount: { type: number }
+        windSpeedMax: { type: number }
+        sunrise: { type: string }
+        sunset: { type: string }
+    WeatherResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [timezone, days, unavailableDates, sources, freshness]
+          properties:
+            timezone: { type: string }
+            days: { type: array, items: { $ref: '#/components/schemas/WeatherDay' } }
+            unavailableDates: { type: array, items: { type: string, format: date } }
+            sources: { type: array, items: { $ref: '#/components/schemas/DataSourceReference' } }
+            freshness: { type: string, enum: [FRESH, STALE, UNAVAILABLE] }
+            warning: { type: string }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    Place:
+      type: object
+      required: [providerId, name, category, latitude, longitude, providerUrl]
+      properties:
+        providerId: { type: string }
+        name: { type: string }
+        category: { type: string, enum: [ATTRACTION] }
+        latitude: { type: number }
+        longitude: { type: number }
+        openingHours: { type: string, description: OSM 原始 opening_hours，不能据此断言当前营业 }
+        website: { type: string, format: uri }
+        providerUrl: { type: string, format: uri }
+        sourceUpdatedAt: { type: string, format: date-time }
+    PlaceResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [places, sources, freshness]
+          properties:
+            places: { type: array, items: { $ref: '#/components/schemas/Place' } }
+            sources: { type: array, items: { $ref: '#/components/schemas/DataSourceReference' } }
+            freshness: { type: string, enum: [FRESH, STALE, UNAVAILABLE] }
+            warning: { type: string }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
     ErrorResponse:
       type: object
       required: [error, meta]

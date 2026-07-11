@@ -11,12 +11,20 @@ export interface TripSummary { id: string; destination: string; startDate: strin
 export interface Activity { sequenceNumber: number; startTime: string; endTime: string; title: string; location: string; description?: string; estimatedCost: Money; transportAdvice?: string; category: Category }
 export interface ItineraryDay { dayNumber: number; date: string; summary?: string; activities: Activity[] }
 export interface BudgetBreakdown { categories: { category: Category; amount: Money }[]; total: Money; exceedsBudget: boolean; exceededBy?: Money }
-export interface Trip extends TripSummary { budget: Money; estimatedTotal?: Money; currency?: string; travelers: number; preferences: string[]; timezone: string; additionalRequirements?: string; warnings?: string[]; itinerary: ItineraryDay[]; budgetBreakdown?: BudgetBreakdown }
+export type DataFreshness = 'FRESH' | 'STALE' | 'UNAVAILABLE'
+export interface DataSourceReference { provider: string; label: string; sourceUrl: string; license?: string; retrievedAt: string; sourceUpdatedAt?: string; freshness: DataFreshness }
+export interface LocationReference { id: string; name: string; displayName: string; countryCode?: string; latitude: number; longitude: number; timezone: string; type?: string; sources: DataSourceReference[] }
+export interface LocationSearchResult extends Omit<LocationReference, 'id'> { locationId: string }
+export interface Trip extends TripSummary { budget: Money; estimatedTotal?: Money; currency?: string; travelers: number; preferences: string[]; timezone: string; additionalRequirements?: string; warnings?: string[]; itinerary: ItineraryDay[]; budgetBreakdown?: BudgetBreakdown; destinationLocation?: LocationReference }
 export interface TripVersionSummary { versionNumber: number; estimatedTotal: Money; createdAt: string }
 export interface TripVersion extends TripVersionSummary { warnings?: string[]; itinerary: ItineraryDay[]; budgetBreakdown: BudgetBreakdown }
-export interface CreateTripInput { destination: string; startDate: string; days: number; budget: Money; travelers: number; preferences: string[]; timezone: string; additionalRequirements?: string }
+export interface CreateTripInput { destination: string; destinationLocationId?: string; startDate: string; days: number; budget: Money; travelers: number; preferences: string[]; timezone: string; additionalRequirements?: string }
+export interface WeatherDay { date: string; weatherCode: number; condition?: string; temperatureMax: number; temperatureMin: number; precipitationProbability?: number; precipitationAmount?: number; windSpeedMax?: number; sunrise?: string; sunset?: string }
+export interface WeatherSnapshot { timezone: string; days: WeatherDay[]; unavailableDates: string[]; sources: DataSourceReference[]; freshness: DataFreshness; warning?: string }
+export interface NearbyPlace { providerId: string; name: string; category: string; latitude: number; longitude: number; distanceMeters?: number; openingHours?: string; website?: string; providerUrl?: string; sourceUpdatedAt?: string }
+export interface PlaceSnapshot { places: NearbyPlace[]; sources: DataSourceReference[]; freshness: DataFreshness; warning?: string }
 export type MessageStatus = 'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED'
-export interface ConversationMessage { id: string; role: 'USER' | 'ASSISTANT'; content: string; status: MessageStatus; tripVersionNumber?: number; model?: string; usage?: { inputTokens?: number; outputTokens?: number }; errorCode?: string; createdAt: string; completedAt?: string }
+export interface ConversationMessage { id: string; role: 'USER' | 'ASSISTANT'; content: string; status: MessageStatus; tripVersionNumber?: number; model?: string; usage?: { inputTokens?: number; outputTokens?: number }; errorCode?: string; createdAt: string; completedAt?: string; sources?: DataSourceReference[]; dataUpdatedAt?: string; freshness?: DataFreshness }
 export interface Conversation { id: string; title?: string; tripId?: string; createdAt: string; updatedAt: string; messages: ConversationMessage[] }
 export interface ConversationSummary { id: string; title?: string; tripId?: string; updatedAt: string }
 export interface StreamAck { streamId: string; userMessageId: string; assistantMessageId: string; eventId: number }

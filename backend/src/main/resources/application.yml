@@ -59,3 +59,17 @@ app:
     event-retention: ${CONSULTATION_EVENT_RETENTION:PT10M}
     disconnect-grace: ${CONSULTATION_DISCONNECT_GRACE:PT30S}
     stub-chunk-delay: ${CONSULTATION_STUB_CHUNK_DELAY:PT0S}
+  realtime:
+    mode: ${REALTIME_PROVIDER_MODE:stub}
+    user-agent: "${REALTIME_USER_AGENT:smart-travel-assistant/0.1 (contact admin@example.com)}"
+    nominatim-base-url: ${NOMINATIM_BASE_URL:https://nominatim.openstreetmap.org}
+    weather-base-url: ${WEATHER_BASE_URL:https://api.open-meteo.com}
+    overpass-base-url: ${OVERPASS_BASE_URL:https://overpass-api.de}
+    connect-timeout: ${REALTIME_CONNECT_TIMEOUT:PT3S}
+    request-timeout: ${REALTIME_REQUEST_TIMEOUT:PT8S}
+    location-ttl: ${LOCATION_CACHE_TTL:P7D}
+    weather-ttl: ${WEATHER_CACHE_TTL:PT30M}
+    weather-stale: ${WEATHER_CACHE_STALE:PT6H}
+    places-ttl: ${PLACES_CACHE_TTL:PT6H}
+    places-stale: ${PLACES_CACHE_STALE:P7D}
+    places-radius-meters: ${PLACES_RADIUS_METERS:5000}
