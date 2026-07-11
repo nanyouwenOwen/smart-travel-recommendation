@@ -29,6 +29,8 @@ Round 07 治理与交接候选证据：提交 `82d0f89`；[GitHub Actions run `2
 
 Round 08 Compose smoke 可靠性候选证据：提交 `4016764`；[GitHub Actions run `29165356764`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29165356764) 七个 job 全绿；Actions artifact `smart-travel-assistant-0.1.0-rc`；artifact digest `sha256:0d18f4cf11ff673b4869f71a85bebf899bf17594b8ddae9149cb334a8dd05b64`；Round 08 独立审核最终 `PASS`。
 
+Round 08 证据同步 HEAD `2eb538b` 的 [GitHub Actions run `29165523778`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29165523778) 也已七个 job 全绿；artifact `smart-travel-assistant-0.1.0-rc` digest 为 `sha256:de642becadd443090be4121d874e90c68fa8d6cf4a3f092200afc5810092fedd`。Round 09 审核确认仍缺两项发布正向证据：安全门会忽略无修复版本漏洞，artifact 内部文件/GIT SHA/校验和未直接核对。在下一轮闭环前不得宣称自动化发布证据完整，tag/GitHub Release 也仍未获得授权。
+
 ## 接手步骤
 
 1. 阅读 `AGENTS.md` 与 `docs/ai-governance/WORKFLOW.md`。
