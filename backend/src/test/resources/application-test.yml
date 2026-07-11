@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:travel_assistant;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
