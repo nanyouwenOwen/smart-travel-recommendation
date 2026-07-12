@@ -104,15 +104,9 @@ if [[ "$draft" == true ]]; then
     gh api --method DELETE "repos/$repo/releases/assets/$asset_id"
   done < <(jq -r '.assets[].id' "$release_json")
   publish_stage="upload-assets"
-  for name in "${assets[@]}"; do
-    curl --fail-with-body --silent --show-error -L --request POST \
-      -H 'Accept: application/vnd.github+json' \
-      -H "Authorization: Bearer ${GH_TOKEN:?GH_TOKEN is required}" \
-      -H 'X-GitHub-Api-Version: 2022-11-28' \
-      -H 'Content-Type: application/octet-stream' \
-      --data-binary "@$asset_dir/$name" \
-      "https://uploads.github.com/repos/$repo/releases/$release_id/assets?name=$name" >/dev/null
-  done
+  upload_paths=()
+  for name in "${assets[@]}"; do upload_paths+=("$asset_dir/$name"); done
+  gh release upload "$tag" "${upload_paths[@]}" --repo "$repo"
   load_release
   validate_metadata
   [[ "$(jq -r .draft "$release_json")" == true ]]

@@ -160,3 +160,28 @@ B3/B4 已完整关闭：
 - 最终只读远端复核：`v0.1.0` 仍为 annotated tag，peeled commit 仍为固定 `52864b1aa72f56081abfc0bd146415d2a5f1ccb8`；公开 Release API 仍返回 `404`。复审没有实施任何远端写操作。
 
 允许提交并推送本次上传修正，等待其准确 main run。仍必须满足七个既有 job 全绿、recovery 身份/跨 run candidate 校验通过且发布步骤成功；若成功，应立即按计划删除一次性 recovery job、下载复验公开 Release 八项附件、补齐 TODO/清单/交接证据并由同一 reviewer 完成最终发布复审。
+
+## 官方 GitHub CLI 上传恢复修正审核
+
+审核结论：**PASS（允许推送以 `gh release upload` 替代 curl 的恢复修正）**
+
+准确 main run `29176701107` 已证明只读身份和固定候选验证通过、失败局限在 `upload-assets`。本次未提交修正只替换该上传实现和对应 mock：生产脚本不再自行拼接 uploads host、Authorization header 或二进制请求，而是一次调用 GitHub 官方 `gh release upload <tag> <files>... --repo <owner/repo>`；发布前后的状态机、远端八资产精确验证和下载复验均未改变。
+
+定向审核结果：
+
+- **draft 兼容性成立。** GitHub CLI 官方 `upload` 实现先调用共享 `FetchRelease`。当前官方源码明确说明并实现“查找已发布 Release，或按 pending tag 查找 draft Release”：published 与 draft 两条查询并行，draft 通过 GraphQL 定位后再以 REST 获取详情，随后使用返回的 `upload_url` 上传。因此固定 tag 的已有 draft 是该官方命令的受支持路径，不依赖公开 `/releases/tags/...` 对 draft 的可见性。
+- **状态机继续 fail-closed。** 脚本只在认证枚举确认不存在或恰有一个 draft 时进入上传；上传前先把 draft 保持为 draft 并清理旧附件。`set -euo pipefail` 使 `gh release upload` 任一非零立即退出，后续 metadata 验证和公开 PATCH 不会执行；即使官方 CLI 并发上传发生部分成功，Release 仍是 draft，下一次恢复会先重新枚举并清理全部残留附件。已有公开 Release 路径不会执行上传，只接受完整 metadata、八资产和远端候选复验全部匹配的幂等成功。
+- **八资产仍为固定集合。** 生产 `assets` 数组仍精确包含 `CHANGELOG.md`、`GIT_SHA`、`SHA256SUMS`、双 SBOM、前端 tar、OpenAPI 和后端 JAR 八项。`upload_paths` 只能由该数组和固定 `asset_dir` 逐项构造，没有 glob、目录递归、workflow input 或动态远端名称。上传后 `validate_assets` 要求远端名称集合精确匹配且恰为 8 个非空附件，再下载每项并运行严格候选验证；缺失、额外、重复、空白或损坏均不能进入公开步骤。
+- **严格 mock 与真实调用边界匹配。** mock 只接受 `gh release upload`，要求固定 `v0.1.0`、精确 `--repo owner/repo`、`GH_TOKEN` 等于注入的 mock token，并把所有其余参数当作必须存在且非空的附件路径；未知 flag 会被当作不存在文件而失败。随后同一生产逻辑重新枚举并验证远端精确八项和内容。首次创建、带陈旧/额外附件的 draft 恢复、已公开幂等，以及标题、正文、额外附件、API 故障、错误 token、错误 repository 均有正负向覆盖。draft recovery 的陈旧附件用例也覆盖了“先前部分上传后重试必须清理”的等价状态。
+- **凭据边界改善且未泄露。** `GH_TOKEN` 只通过环境传给官方 `gh`，不再插值进命令参数、URL、header 或 curl 输出。固定 Actions annotation 仍只含脚本内 stage 与退出码；错误 token 测试确认 Actions/local 模式均保留同一非零状态，annotation 不含 token、Authorization、Content-Type 或附件内容。本轮 diff 的常见 token 模式扫描未发现凭据。
+
+Reviewer 实际执行：
+
+- `scripts/test-publish-github-release.sh`：PASS；首次创建、draft 恢复、公开幂等、四类既有冲突/API 失败、认证失败 annotation/local 和错误 repository 均符合预期。
+- `bash -n scripts/publish-github-release.sh scripts/test-publish-github-release.sh scripts/verify-release-candidate.sh`：PASS。
+- `git diff --check`：PASS。
+- `./scripts/check.sh`：PASS；前后端和 OpenAPI 既有门禁无回归。
+- GitHub CLI 官方 manual 确认命令签名为 `gh release upload <tag> <files>... [flags]` 且继承 `--repo`；官方 `cli/cli` 源码确认 draft 查询与官方 upload URL 路径。当前本机未安装真实 `gh`，因此没有用本地网络写操作冒充远端验证。
+- 再次只读核验：`v0.1.0` 仍为 annotated tag，peeled commit 仍为 `52864b1aa72f56081abfc0bd146415d2a5f1ccb8`；公开 Release API 仍返回 `404`。审核没有创建、修改或发布 Release。
+
+本 PASS 只授权推送当前两文件修正并等待其准确 main run。只有 recovery job 的固定身份、候选校验、官方上传、远端八附件下载复验和最终发布全部成功后，才能进入一次性 recovery job 删除与最终发布证据阶段。

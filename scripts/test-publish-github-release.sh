@@ -28,6 +28,27 @@ mkdir -p "$tmp/bin"
 cat >"$tmp/bin/gh" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "$1" == release && "$2" == upload ]]; then
+  shift 2; tag="$1"; shift; files=(); repo=''
+  while (($#)); do
+    case "$1" in
+      --repo) repo="$2"; shift 2 ;;
+      *) files+=("$1"); shift ;;
+    esac
+  done
+  [[ "$tag" == v0.1.0 && "$repo" == "${MOCK_EXPECT_REPO:-owner/repo}" ]]
+  [[ "${GH_TOKEN:-}" == "${MOCK_EXPECT_TOKEN:-mock-token}" ]]
+  state="$MOCK_STATE/releases.json"
+  release_id="$(jq -er --arg tag "$tag" '.[] | select(.tag_name == $tag and .draft == true) | .id' "$state")"
+  for input in "${files[@]}"; do
+    [[ -f "$input" && -s "$input" ]]; name="$(basename "$input")"; id="$(cat "$MOCK_STATE/next-id")"
+    echo $((id + 1)) >"$MOCK_STATE/next-id"; cp "$input" "$MOCK_STATE/assets/$id"; size="$(stat -c %s "$input")"
+    jq --argjson release_id "$release_id" --argjson id "$id" --arg name "$name" --argjson size "$size" \
+      'map(if .id == $release_id then .assets += [{id:$id,name:$name,size:$size}] else . end)' \
+      "$state" >"$state.new"; mv "$state.new" "$state"
+  done
+  exit 0
+fi
 [[ "$1" == api ]]; shift
 method=GET; input=''; endpoint=''
 declare -A fields=()
@@ -76,47 +97,6 @@ if [[ "$method" == GET && "$endpoint" =~ /assets/([0-9]+)$ ]]; then cat "$MOCK_S
 echo "unsupported mock gh call: $method $endpoint" >&2; exit 90
 MOCK
 chmod +x "$tmp/bin/gh"
-cat >"$tmp/bin/curl" <<'MOCK_CURL'
-#!/usr/bin/env bash
-set -euo pipefail
-input=''; url=''; method=''; accept=''; authorization=''; api_version=''; content_type=''
-while (($#)); do
-  case "$1" in
-    --data-binary) input="${2#@}"; shift 2 ;;
-    --request) method="$2"; shift 2 ;;
-    -H)
-      case "$2" in
-        'Accept: '*) accept="$2" ;;
-        'Authorization: '*) authorization="$2" ;;
-        'X-GitHub-Api-Version: '*) api_version="$2" ;;
-        'Content-Type: '*) content_type="$2" ;;
-      esac
-      shift 2 ;;
-    --fail-with-body|--silent|--show-error|-L) shift ;;
-    http*) url="$1"; shift ;;
-    *) shift ;;
-  esac
-done
-[[ "$method" == POST ]]
-[[ "$accept" == 'Accept: application/vnd.github+json' ]]
-[[ "$authorization" == "Authorization: Bearer ${MOCK_EXPECT_TOKEN:-mock-token}" ]]
-[[ "$api_version" == 'X-GitHub-Api-Version: 2022-11-28' ]]
-[[ "$content_type" == 'Content-Type: application/octet-stream' ]]
-[[ -f "$input" && -s "$input" ]]
-prefix="https://uploads.github.com/repos/${MOCK_EXPECT_REPO:-owner/repo}/releases/"
-[[ "$url" == "$prefix"* ]]
-suffix="${url#"$prefix"}"
-[[ "$suffix" =~ ^([0-9]+)/assets\?name=([^/?]+)$ ]]
-release_id="${BASH_REMATCH[1]}"; name="${BASH_REMATCH[2]}"; id="$(cat "$MOCK_STATE/next-id")"
-echo $((id + 1)) >"$MOCK_STATE/next-id"; cp "$input" "$MOCK_STATE/assets/$id"
-size="$(stat -c %s "$input")"
-jq --argjson release_id "$release_id" --argjson id "$id" --arg name "$name" --argjson size "$size" '
-  map(if .id == $release_id then .assets += [{id:$id,name:$name,size:$size}] else . end)' \
-  "$MOCK_STATE/releases.json" >"$MOCK_STATE/new"
-mv "$MOCK_STATE/new" "$MOCK_STATE/releases.json"
-echo '{}'
-MOCK_CURL
-chmod +x "$tmp/bin/curl"
 
 seed_state() {
   local draft="$1" title="$2" body="$3" asset_mode="$4"
@@ -180,14 +160,7 @@ set +e; run_publish_with wrong-token false >"$local_output" 2>&1; local_status=$
 ! grep -q '::error' "$local_output"
 echo 'upload auth failure local mode: PASS'
 
-curl_args=(--fail-with-body --silent --show-error -L --request POST
-  -H 'Accept: application/vnd.github+json'
-  -H 'Authorization: Bearer mock-token'
-  -H 'X-GitHub-Api-Version: 2022-11-28'
-  -H 'Content-Type: application/octet-stream'
-  --data-binary "@$assets/CHANGELOG.md")
-expect_failure 'upload wrong host' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_EXPECT_TOKEN=mock-token \
-  curl "${curl_args[@]}" 'https://example.com/repos/owner/repo/releases/1/assets?name=CHANGELOG.md'
+seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
 expect_failure 'upload wrong repository' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_EXPECT_TOKEN=mock-token \
-  curl "${curl_args[@]}" 'https://uploads.github.com/repos/other/repo/releases/1/assets?name=CHANGELOG.md'
+  GH_TOKEN=mock-token gh release upload v0.1.0 "$assets/CHANGELOG.md" --repo other/repo
 echo 'publish release state-machine tests: PASS'
