@@ -2,6 +2,12 @@
 
 详细历史见 [`../ai-usage-log.md`](../ai-usage-log.md)。本文件从项目封板开始提供短索引，后续每轮追加一项。
 
+## 2026-07-12 - 性能烟测稳定测量边界
+
+- 触发：多个 main run 在相同 `container-smoke` 第 7/10 阶段偶发 k6 阈值失败，而相邻运行通过；旧 annotation 没有实际 p95、失败率或端点证据，因此没有把原因臆测为 runner 噪声。
+- 实施决定：保留正式 10 VU/30 秒、错误率 `<1%`、p95 `<2000ms` 和前后端双请求，不做自动重试。新增五轮有界双端点预热并从正式指标中隔离；正式请求用 phase/endpoint 标签，成功或失败均生成结构化 summary，CI `always()` 保存，Compose 同时记录有界资源快照。
+- 验证：Shell mock 覆盖有效/缺失/畸形 summary、k6 原退出码优先级和门禁常量；受控 HTTP fixture 使用官方 k6 v0.57.0 实际执行生产 smoke，3 类预热失败与 transport/HTTP/content/p95 4 类正式失败共 7/7 通过。Round 15 同一独立审核端复跑后结论 PASS；准确远端指标和 Release 结果待推送后补录。
+
 ## 2026-07-12 - Xiaomi MiMo Token Plan Anthropic 适配
 
 - 用户决定：后端支持 Xiaomi MiMo，指定官方平台、`https://token-plan-cn.xiaomimimo.com/anthropic` 和模型 `mimo-v2.5`。

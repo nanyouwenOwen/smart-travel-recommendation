@@ -170,7 +170,21 @@ log "Stage 6/10 passed"
 current_stage="7/10 performance thresholds"
 last_observation="running k6 thresholds"
 log "Stage 7/10: k6 performance thresholds"
-if ! BASE_URL="$base" scripts/perf.sh; then fail "Performance stage failed"; fi
+performance_results="${PERF_RESULTS_DIR:-$root/perf-results}"
+log "Pre-measurement bounded container resources"
+docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' \
+  "${project}-mysql-1" "${project}-backend-1" "${project}-frontend-1" || true
+set +e
+BASE_URL="$base" PERF_RESULTS_DIR="$performance_results" scripts/perf.sh
+performance_status=$?
+set -e
+log "Post-measurement bounded container resources"
+docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' \
+  "${project}-mysql-1" "${project}-backend-1" "${project}-frontend-1" || true
+if ((performance_status != 0)); then
+  last_observation="k6 threshold failed; summary=perf-results/k6-summary.json"
+  fail "Performance stage failed"
+fi
 log "Stage 7/10 passed"
 
 current_stage="8/10 backend recovery"

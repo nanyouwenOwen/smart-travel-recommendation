@@ -105,6 +105,13 @@ jobs:
           CONSULTATION_AI_PROVIDER: stub
           REALTIME_PROVIDER_MODE: stub
       - run: bash scripts/compose-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-summary-${{ github.run_id }}
+          path: perf-results/k6-summary.json
+          if-no-files-found: warn
+          retention-days: 7
 
   security:
     runs-on: ubuntu-latest
