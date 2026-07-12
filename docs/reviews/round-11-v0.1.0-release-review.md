@@ -135,3 +135,25 @@ reviewer 独立运行 `scripts/test-publish-github-release.sh`，测试在临时
 3. 推送 tag 后只接受该 tag run 自身的全部质量链、candidate 和 release job 成功，不得以历史 run 替代。
 4. 发布后按计划独立核验远端 tag object/目标、公开 Release 状态和八项下载副本，再提交 `TODO.md` 与证据文档；由同一 reviewer 做发布事实终审。
 5. 如果 tag run 暴露必须修改源码的缺陷，不得移动或强推 `v0.1.0`；停止并按计划请求新的版本决策。
+
+## Tag 推送前放行核对（2026-07-12）
+
+### 结论
+
+**PASS — 放行创建并推送 annotated `v0.1.0` tag。**
+
+准确发布提交现为 `52864b1aa72f56081abfc0bd146415d2a5f1ccb8`。该提交包含已审核的 Round 11 发布机制，以及已经独立审核通过、只增强 container smoke 失败诊断而不改变发布状态机的 Round 12 变更。
+
+### 核对证据
+
+- 核对前 `HEAD`、本地 `main` 和 `origin/main` 均为完整 SHA `52864b1aa72f56081abfc0bd146415d2a5f1ccb8`；工作树干净。
+- GitHub Actions run [`29175831503`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29175831503) 为该准确 SHA 的 `push` run，整体 `completed/success`。
+- GitHub Actions REST jobs 证据显示 `openapi`、`frontend`、`backend`、`e2e`、`container-smoke`、`security`、`release-candidate` 七项均为 `completed/success`；`release` 为 `completed/skipped`，证明普通 `main` push 未进入写发布路径。
+- `git ls-remote --tags origin refs/tags/v0.1.0 refs/tags/v0.1.0^{}` 无输出；GitHub Git refs API 对 `refs/tags/v0.1.0` 返回 404，远端不存在冲突 tag。
+- GitHub Releases tag API 对 `v0.1.0` 返回 404，当前不存在冲突的公开 Release。认证 workflow 在真正执行时仍会通过 releases 列表检查可能的 draft，并对零/一/多匹配采取已审核的安全分支。
+- 从准确提交读取的 workflow 仍仅由精确 `v0.1.0` tag 触发 release job；job 仍传递依赖完整质量链、只在该 job 授予 `contents: write`，并继续验证 annotated tag、目标 SHA、`origin/main` 可达性、同 run artifact 和固定八项附件。
+- `git diff --check` 通过；本次 reviewer 只追加本审核记录，没有修改发布实现或远端状态。
+
+### 放行边界
+
+实施终端现在可以对准确提交 `52864b1aa72f56081abfc0bd146415d2a5f1ccb8` 创建 annotated tag，注释信息按计划固定，并只推送该 tag。放行不允许移动/强推 tag，也不允许跳过 tag run。tag run 的七项质量 job、`release-candidate` 和 `release` 必须全部成功；之后仍需核验 tag object/剥离目标、公开 Release 状态以及下载后的八项附件，才能勾选 `TODO.md`。

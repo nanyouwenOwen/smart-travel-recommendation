@@ -41,3 +41,8 @@
 - 触发：发布机制提交 `7fd4abc` 的 main CI run `29175449348` 中 `container-smoke` 以 1 退出，候选/发布 job 跳过；公开页面只显示通用退出码，不能定位阶段，因此未创建 tag。
 - 实施：不猜测根因也不放宽任何断言、轮询、超时或性能阈值；为十个阶段维护固定安全名称，非零 EXIT 时发出经转义的单条 GitHub error annotation，包含阶段、最后脱敏观测和原退出码，然后保持原有有界诊断与清理。
 - 定向证据：新增测试覆盖显式/直接/管道失败、自定义退出码、INT 130、TERM 143、GitHub/本地输出、workflow-command 注入转义及成功静默路径；对摘要、诊断和资源清理三个边界分别注入真实非零返回，均确认仍保留原始退出码 37。本轮准确 main CI 尚待推送后验证。
+
+## 2026-07-12 - v0.1.0 一次性发布恢复
+
+- 触发：annotated `v0.1.0` 已不可变地指向 `52864b1`；tag run `29175974787` 的六个质量 job 和 `release-candidate` 成功，但 `release` 在只读验证步骤失败，发布脚本未执行，公开 Release API 返回 404。未移动 tag，也未勾选 TODO。
+- 恢复设计：在 `main` 临时增加一次性 job，只在该恢复提交的完整质量链与候选 job 成功后获得 `actions: read`/`contents: write`。它固定绑定仓库、tag、peeled SHA、源 run ID 和 artifact 名，独立核对源 run 七个成功 job，不使用当前 main 产物；发布成功后将立即删除该一次性写路径。
