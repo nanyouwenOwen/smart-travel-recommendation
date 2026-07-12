@@ -241,6 +241,21 @@ B5–B7 已关闭：
 
 允许推送本修正并等待准确 main run。只有七个既有 job、固定 source candidate 校验和 recovery 发布步骤全部成功，才可核验公开 Release；随后仍必须删除一次性 recovery job并完成最终发布证据复审。
 
+## draft discovery 提交的远端门禁失败审核
+
+审核结论：**允许仅提交本次远端失败的审计记录，以触发一次新的完整重验；不允许把 run `29177109032` 视为通过，也不允许放宽性能门禁或修改产品。**
+
+只读核验结果：
+
+- run `29177109032` 精确对应提交 `6049e18631e5d515d5eed36d99f1e8583e4faecb`。backend、frontend、e2e、security、openapi 成功；`container-smoke` 失败；`release-candidate` 与 `release-recovery-v0-1-0` 均因依赖跳过。
+- 固定阶段证据将失败定位为 `stage=7/10 performance thresholds`，k6 阈值返回 1。该 run 没有生成候选，也没有进入 recovery 的身份、draft discovery、上传或任何 Release 写步骤。因此它严格阻断了该次发布尝试，但不构成 draft discovery 逻辑失败的执行证据。
+- `6049e18` 相比相邻已验证提交没有修改 `scripts/compose-smoke.sh`、`tests/performance/smoke.js`、Compose 文件或产品实现。相同 smoke/性能实现已在紧邻 run `29176701107` 与 `29176911435` 中通过；后两次的失败均发生在 recovery 发布步骤，说明它们已先通过同一 container 门禁。
+- 当前拟提交差异只有 `docs/ai-governance/AI_CHANGE_LOG.md` 对上述准确事实的记录；它明确不把 container failure 写成发布代码失败、不宣称 Release 完成，也不调整阈值、超时、重试、断言或测试数据。
+
+基于以上证据，允许一个纯审计文档提交触发新的 main run。这不是绕过失败：新 run 仍必须从头通过 openapi、frontend、backend、e2e、container-smoke、security、release-candidate，recovery 才可能获得写入机会。历史相邻 green 不能替代新 run 的 container 成功。
+
+授权边界：只允许这一次审计记录触发的完整重验；不得手工重跑单个 recovery、不得使用历史 candidate 替代当前质量门禁、不得调高 k6 阈值或修改产品以掩盖波动。若新 run 再次在同一 performance stage 失败，应停止用文档提交反复重试，转入独立诊断轮次并保留原阈值，查明资源噪声或真实性能退化后再决定。
+
 ## 官方 GitHub CLI 上传恢复修正审核
 
 审核结论：**PASS（允许推送以 `gh release upload` 替代 curl 的恢复修正）**
