@@ -17,8 +17,10 @@
    ```
 
 4. 经 2026-07-12 核验，DeepSeek 当前官方基础 URL 是 `https://api.deepseek.com`，模型示例为 `deepseek-v4-flash` 或 `deepseek-v4-pro`；官方提示旧的 `deepseek-chat`/`deepseek-reasoner` 将弃用，所以配置当天再次查看[DeepSeek 官方 API 文档](https://api-docs.deepseek.com/)。示例：`AI_BASE_URL=https://api.deepseek.com`、`AI_MODEL=deepseek-v4-flash`。DeepSeek 当前 `response_format` 只接受 `text`/`json_object`，而本项目行程适配器固定发送 `json_schema`；因此只填 key 可用于咨询的非生产验证，**当前不能用于行程生成**。行程功能必须另开实现轮次，改用 `json_object` 并在本地继续做 Schema 校验，或实现其他受官方支持的严格结构化方案。
-5. 经 2026-07-12 核验，Xiaomi MiMo 按量付费 API 的兼容接口是 `https://api.xiaomimimo.com/v1/chat/completions`，所以本项目只推荐使用按量付费 API，填 `AI_BASE_URL=https://api.xiaomimimo.com/v1` 及其对应 API key。官方当前示例为 `mimo-v2.5-pro`，并已提示 V2 系列弃用，请以配置当天的[MiMo Chat 官方文档](https://mimo.mi.com/docs/en-US/api/chat/openai-api)为准。MiMo Token Plan 是独立订阅产品，使用其专用 key/官方指定的独立调用配置，不得与按量付费 URL/key 混用。它当前只允许 AI 编程工具场景，明确禁止自定义应用后端等非 Coding API 调用，**不适用于本旅游助手**；不得购买或配置它用于本项目，并在接入当天复核 [MiMo Token Plan 条款](https://mimo.mi.com/docs/en-US/price/token-plan)。
+5. 项目已按负责人提供的 Token Plan Anthropic 配置新增独立适配器：`XIAOMI_MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/anthropic`、`XIAOMI_MIMO_MODEL=mimo-v2.5`，并通过 `XIAOMI_MIMO_API_KEY` 注入专用 key。不得把 Token Plan key 放进 `AI_API_KEY`，也不得把真实 key 写入 `.env.example`、仓库或日志。公开平台页确认 Token Plan 包含 `mimo-v2.5`，但公开页面没有完整呈现自定义旅游后端的最新用途条款；负责人必须在购买或启用前通过 [Xiaomi MiMo 官方平台](https://platform.xiaomimimo.com)确认套餐允许本项目用途、配额和费用。
 6. 先只启用一个供应商，在非生产环境执行注册 → 普通咨询 → SSE 咨询，检查非流式 JSON、SSE 分片、错误码、Token 用量、超时和账单。只有供应商的结构化输出协议与当前 `json_schema` 请求实际兼容，才可再验证行程生成；DeepSeek 已知不满足此条件。不能直接删掉输出校验，未完成相应适配与真实账号 smoke 前不得切换生产。
+
+MiMo 验收时设置 `TRIP_AI_PROVIDER=xiaomi-mimo-anthropic` 和 `CONSULTATION_AI_PROVIDER=xiaomi-mimo-anthropic`。先以最小额度分别执行一次行程、普通咨询和 SSE 咨询；只记录脱敏状态、模型和 usage，不保存完整用户问题、模型回答或 key。自动化测试只证明 Anthropic Messages 协议适配，不等同于真实账号连通或用途授权。
 7. 设置费用上限和告警；轮换 key 时先添加新 key、更新服务并验证，再撤销旧 key。泄露时立即撤销并检查 Usage。
 
 项目仍保留 Stub 作为 CI、离线演示和故障切换路径。没有 `AI_API_KEY` 时不得把 provider 切到真实模式。

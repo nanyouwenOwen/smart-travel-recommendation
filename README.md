@@ -127,7 +127,12 @@ bash scripts/e2e.sh
 | `AI_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容服务地址 |
 | `AI_API_KEY` | 无 | AI 服务密钥，不得提交到仓库 |
 | `AI_MODEL` | `gpt-5-mini` | 默认模型，可按供应商修改 |
-| `TRIP_AI_PROVIDER` | 本地 `stub`、生产 `openai-compatible` | 行程生成供应商；Stub 不访问网络 |
+| `XIAOMI_MIMO_BASE_URL` | `https://token-plan-cn.xiaomimimo.com/anthropic` | MiMo Token Plan Anthropic 根地址；后端自动追加 `/v1/messages` |
+| `XIAOMI_MIMO_API_KEY` | 无 | MiMo Token Plan 专用密钥；不得与 `AI_API_KEY` 混用或提交 |
+| `XIAOMI_MIMO_MODEL` | `mimo-v2.5` | MiMo 模型 |
+| `XIAOMI_MIMO_ANTHROPIC_VERSION` | `2023-06-01` | Anthropic Messages 协议版本头 |
+| `XIAOMI_MIMO_MAX_OUTPUT_TOKENS` | `8192` | MiMo 单次最大输出 Token |
+| `TRIP_AI_PROVIDER` | `stub`、`openai-compatible`、`xiaomi-mimo-anthropic` | 行程生成供应商；Stub 不访问网络 |
 | `TRIP_AI_CONNECT_TIMEOUT` / `TRIP_AI_REQUEST_TIMEOUT` | `PT5S` / `PT45S` | AI 连接与单次请求超时 |
 | `TRIP_AI_TOTAL_TIMEOUT` | `PT2M` | 包含重试和退避的单个生成任务总截止时间 |
 | `TRIP_AI_MAX_ATTEMPTS` | `3` | 瞬态故障最大尝试次数 |
@@ -135,7 +140,7 @@ bash scripts/e2e.sh
 | `TRIP_EXECUTOR_CORE_SIZE` / `TRIP_EXECUTOR_MAX_SIZE` | `2` / `4` | 行程生成线程池大小 |
 | `TRIP_EXECUTOR_QUEUE_CAPACITY` | `50` | 行程生成等待队列容量 |
 | `TRIP_JOB_STALE_AFTER` / `TRIP_RECOVERY_INTERVAL` | `PT3M` / `PT30S` | 中断任务判定和恢复扫描间隔；应大于总截止时间 |
-| `CONSULTATION_AI_PROVIDER` | 本地 `stub`、生产 `openai-compatible` | 旅游咨询供应商 |
+| `CONSULTATION_AI_PROVIDER` | `stub`、`openai-compatible`、`xiaomi-mimo-anthropic` | 旅游咨询供应商 |
 | `CONSULTATION_GLOBAL_CONCURRENCY` / `CONSULTATION_USER_RPM` | `4` / `20` | 单实例咨询并发及用户频率限制 |
 | `CONSULTATION_USER_CONCURRENCY` | `1` | 单用户同时进行的咨询数 |
 | `CONSULTATION_REQUEST_TIMEOUT` / `CONSULTATION_TOTAL_TIMEOUT` | `PT45S` / `PT60S` | 单次读取及完整咨询截止时间 |
@@ -147,6 +152,12 @@ bash scripts/e2e.sh
 | `ACCESS_TOKEN_TTL` | `PT15M` | Access Token 有效期 |
 | `REFRESH_TOKEN_TTL` | `P30D` | Refresh Token 有效期 |
 | `VITE_API_BASE_URL` | `/api/v1` | 浏览器请求前缀 |
+
+启用 Xiaomi MiMo Token Plan 时，将 `TRIP_AI_PROVIDER` 和/或
+`CONSULTATION_AI_PROVIDER` 设置为 `xiaomi-mimo-anthropic`，并通过运行环境 Secret
+提供 `XIAOMI_MIMO_API_KEY`。适配器自动调用 `/anthropic/v1/messages`，使用
+Anthropic Messages、`x-api-key` 和 `anthropic-version`，不会发送 OpenAI 专属的
+Bearer、`/chat/completions` 或 `response_format`。仓库测试使用本地 Mock，不会访问或计费真实 MiMo 账号。
 
 后端环境通过 Spring Profile 区分：`dev` 用于本地调试，`test` 使用内存数据库隔离测试，`prod` 强制从环境变量读取数据库凭据。生产环境启动时应设置 `SPRING_PROFILES_ACTIVE=prod`。
 

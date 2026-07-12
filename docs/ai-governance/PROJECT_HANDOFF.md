@@ -2,7 +2,7 @@
 
 ## 项目状态
 
-这是 Java 21/Spring Boot 4.1 + Vue 3.5/TypeScript + MySQL 8.4 的前后端分离 MVP。已实现认证、结构化 AI 行程、预算、调整/版本恢复、普通与 SSE 咨询、地点/天气/景点/地图、来源与更新时间。默认 AI 和实时数据均为确定性 Stub；当前 Codex 会话不能嵌入运行时。后续可人工配置 DeepSeek 或 Xiaomi MiMo，但不应概括为“全功能兼容”：DeepSeek 咨询预期兼容，其官方 `response_format` 不支持当前行程适配器固定使用的 `json_schema`，因此行程接入需先实现专用适配；MiMo 仅推荐按量付费 API，Token Plan 当前条款禁止本项目这类非 Coding 自定义应用后端。详见 `HUMAN_ACTIONS.md`。
+这是 Java 21/Spring Boot 4.1 + Vue 3.5/TypeScript + MySQL 8.4 的前后端分离 MVP。已实现认证、结构化 AI 行程、预算、调整/版本恢复、普通与 SSE 咨询、地点/天气/景点/地图、来源与更新时间。默认 AI 和实时数据均为确定性 Stub；当前 Codex 会话不能嵌入运行时。后端另有 OpenAI-compatible 适配器，并在 Round 14 新增 Xiaomi MiMo Token Plan Anthropic Messages 适配器，覆盖行程、普通咨询和 SSE；无真实 key 的自动化 Mock 验证不代表真实账号、费用或用途条款已经验收，人工步骤见 `HUMAN_ACTIONS.md`。
 
 ## 权威资料与边界
 

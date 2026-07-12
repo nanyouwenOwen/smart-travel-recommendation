@@ -2,6 +2,13 @@
 
 详细历史见 [`../ai-usage-log.md`](../ai-usage-log.md)。本文件从项目封板开始提供短索引，后续每轮追加一项。
 
+## 2026-07-12 - Xiaomi MiMo Token Plan Anthropic 适配
+
+- 用户决定：后端支持 Xiaomi MiMo，指定官方平台、`https://token-plan-cn.xiaomimimo.com/anthropic` 和模型 `mimo-v2.5`。
+- AI 实施：独立规划 Round 14；新增 `xiaomi-mimo-anthropic` 行程与咨询 Provider、独立 `XIAOMI_MIMO_*` 配置、Anthropic Messages 普通/流式解析、本地 Mock 契约测试和配置文档。现有 Stub/OpenAI-compatible 未被替换，密钥不回退混用。
+- 证据边界：官方公开 Token Plan 页面确认套餐列出 `mimo-v2.5`，但没有使用真实账号/key 发起收费调用，也没有代替负责人确认自定义旅游后端的当前用途条款。自动化结果只证明协议适配；真实用途、费用、key 与三链路 smoke 仍为人工动作。
+- 安全：未索取或保存真实 key；Mock 使用明显无效占位值并断言无 Bearer/OpenAI 专属字段。首审与两次复审推动补齐 SSE block 状态机、条件装配、严格 URL、Compose 透传、显式 DTO、Gateway/预算、错误矩阵和 `x-api-key` 脱敏。最终独立审核 `PASS`：Xiaomi/脱敏定向 10 项、后端 `verify` 52 项、SpotBugs 0、前端 43 项、项目总门禁、Compose config 与 diff check 均通过。
+
 ## 2026-07-12 - 项目封板与治理
 
 - 用户要求：固化“规划—实施—审核与测试”模式，区分工程文档与 AI 文档，说明真实模型接入和人工动作，并提供后续模型审查材料。
