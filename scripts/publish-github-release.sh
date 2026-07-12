@@ -25,7 +25,7 @@ assets=(
 )
 mapfile -t expected_assets < <(printf '%s\n' "${assets[@]}" | LC_ALL=C sort)
 release_json="$(mktemp)"
-matches_json="$(mktemp)"
+release_error="$(mktemp)"
 remote_dir="$(mktemp -d)"
 publish_stage="startup"
 cleanup() {
@@ -33,23 +33,40 @@ cleanup() {
   if ((status != 0)) && [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
     printf '::error title=GitHub Release failed::stage=%s; exit=%s\n' "$publish_stage" "$status" >&2
   fi
-  rm -f "$release_json" "$matches_json" || true
+  rm -f "$release_json" "$release_error" || true
   rm -rf "$remote_dir" || true
   exit "$status"
 }
 trap cleanup EXIT
 
 load_release() {
-  if ! gh api --paginate "repos/$repo/releases?per_page=100" \
-    | jq -s --arg tag "$tag" '[.[][] | select(.tag_name == $tag)]' >"$matches_json"; then
-    echo "failed to list repository releases" >&2
+  local view_json
+  view_json="$(mktemp)"
+  if ! gh release view "$tag" --repo "$repo" \
+    --json databaseId,tagName,name,body,isDraft,isPrerelease,assets \
+    >"$view_json" 2>"$release_error"; then
+    rm -f "$view_json"
+    if [[ "$(<"$release_error")" == 'release not found' ]]; then return 1; fi
+    echo "failed to query release for $tag" >&2
     return 10
   fi
-  local count
-  count="$(jq 'length' "$matches_json")"
-  if [[ "$count" == 0 ]]; then return 1; fi
-  if [[ "$count" != 1 ]]; then echo "expected one release for $tag, found $count" >&2; return 11; fi
-  jq '.[0]' "$matches_json" >"$release_json"
+  jq --arg asset_prefix "https://api.github.com/repos/$repo/releases/assets/" '{
+    id: .databaseId,
+    tag_name: .tagName,
+    name,
+    body,
+    draft: .isDraft,
+    prerelease: .isPrerelease,
+    assets: [.assets[] | {
+      id: (.apiUrl
+        | if startswith($asset_prefix) and (ltrimstr($asset_prefix) | test("^[0-9]+$"))
+          then ltrimstr($asset_prefix) | tonumber
+          else error("unexpected release asset API URL") end),
+      name,
+      size
+    }]
+  }' "$view_json" >"$release_json"
+  rm -f "$view_json"
 }
 
 validate_metadata() {

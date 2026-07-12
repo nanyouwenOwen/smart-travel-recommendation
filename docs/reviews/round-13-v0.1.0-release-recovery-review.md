@@ -161,6 +161,86 @@ B3/B4 已完整关闭：
 
 允许提交并推送本次上传修正，等待其准确 main run。仍必须满足七个既有 job 全绿、recovery 身份/跨 run candidate 校验通过且发布步骤成功；若成功，应立即按计划删除一次性 recovery job、下载复验公开 Release 八项附件、补齐 TODO/清单/交接证据并由同一 reviewer 完成最终发布复审。
 
+## 第二次 recovery 失败后的修正审核
+
+审核结论：**PASS（允许推送 `gh release upload` 修正）**
+
+### 真实失败边界
+
+公共 Actions API 证明 run `29176701107` 对应 main 提交 `8492ec67b9a62583826450de01c3ce4841de931f`：六个质量 job 和 `release-candidate` 成功；recovery 的固定身份/source run、跨 run 下载及候选校验步骤成功，只有发布步骤失败。已有固定阶段诊断把失败定位到 `upload-assets` 且原退出码为 1。公开 Release API 仍为 `404`，但认证可见 draft 状态未知；审计日志没有将未知 HTTP 响应伪造成确定根因。tag 类型和 peeled commit 均未改变。
+
+### 实现审核
+
+- 上传改为 GitHub CLI 官方命令 `gh release upload "$tag" <八个固定路径> --repo "$repo"`。tag 和 repository 仍来自 workflow 已固定并在写前校验的常量；认证仍只使用 job 注入的短期 `GH_TOKEN`，未增加 secret、PAT、动态输入或权限。
+- 当前 GitHub CLI 官方实现的 `FetchRelease` 明确同时查找公开 Release 和按 pending tag 查找 draft Release，再使用返回的 `upload_url` 并发上传。因此该命令与现有“先创建/恢复 draft、清空旧附件、上传验证后再公开”的状态机相容。参考：[官方 CLI upload 手册](https://cli.github.com/manual/gh_release_upload) 与 [GitHub CLI 当前 `FetchRelease` 源码](https://github.com/cli/cli/blob/trunk/pkg/cmd/release/shared/fetch.go)。
+- 上传参数不是 glob 或目录扫描：`upload_paths` 只由脚本内八项白名单逐项构造。上传后重新认证枚举 Release，要求仍为 draft、metadata 精确匹配、资产集合恰为八项且全部非空，并逐项远端下载运行固定 SHA/checksum/SBOM/JAR/tar 验证；只有通过后才公开，公开后再次完整复验。
+- 已公开且完全匹配的 Release 仍走只读幂等验证，不调用 upload；冲突公开 Release 仍失败。draft 恢复仍先删除其现有资产，再上传固定集合，未使用 `--clobber` 的非原子替换语义。
+- `--repo` 显式约束仓库；mock 同时要求固定 tag、固定 repository、精确 `GH_TOKEN`、目标为该 tag 的 draft、所有路径为非空文件。后续固定资产校验使缺失、额外、重复或错误文件名均不能进入公开路径。
+- 日志未开启 shell xtrace；`GH_TOKEN` 不作为命令参数。失败 annotation 仍只包含脚本内固定阶段和数字退出码，既有错误 token 测试证明不回显 token、Authorization、Content-Type 或附件内容。本轮没有引入响应正文输出或 debug API trace。
+
+### 测试证据
+
+- `bash -n scripts/publish-github-release.sh scripts/test-publish-github-release.sh scripts/verify-release-candidate.sh`：PASS。
+- `scripts/test-publish-github-release.sh`：PASS；首次创建、draft 清理恢复、公开幂等三条正向路径，metadata/asset/API 冲突四条既有负向路径，以及错误认证、Actions/local 原退出码诊断、错误 repository 均符合预期。
+- `git diff --check`：PASS。
+- `./scripts/check.sh`：PASS；前端 43 tests/coverage/build、后端 Maven verify 与 OpenAPI 门禁无退化。
+- 远端只读复核：run/job 事实与 AI log 一致；`v0.1.0` 仍为 annotated tag，peeled commit 为 `52864b1aa72f56081abfc0bd146415d2a5f1ccb8`；公开 Release 仍为 404。审核终端未执行远端写操作。
+
+允许推送该修正并等待其准确 main run。只有七个既有 job 与 recovery 全部成功、公开 Release 八附件经真实下载复验后，才可进入删除一次性 recovery job、勾选 MVP TODO 和最终证据复审阶段；本 PASS 本身不代表 Release 已发布。
+
+## 第三次 recovery 失败后的修正审核
+
+审核结论：**FAIL（禁止推送当前 release discovery 修正）**
+
+### 远端事实
+
+公共 Actions API 显示 run `29176911435` 对应 main 提交 `f836ac87a177d65185d079b8cf4601293f9b447a`：六个质量 job 与 `release-candidate` 成功；recovery 仅发布步骤失败。根据实施终端提供的固定阶段证据，失败位于 `create-draft`，与“REST list 没有发现既有 pending-tag draft，继而尝试重复创建”的解释一致，但公共 API/日志不能独立读取认证 draft，故本报告不把它提升为完全证明的服务端根因。公开 Release API仍为 `404`，annotated tag 与固定 peeled commit 未改变。
+
+改用 `gh release view <tag> --json ...` 的总体方向正确：当前 GitHub CLI `FetchRelease` 同时查 published Release 与 pending-tag draft；成功 JSON 映射回现有状态机后，draft 清理/上传、严格八资产、远端下载验证、公开后复验和公开 Release 幂等路径均保留。当前实现仍有下列阻断。
+
+### R13-B5：not-found 分类是宽松子串，不是精确错误
+
+要求是“仅精确 `release not found` 视为缺失，其他查询错误 fail-closed”。当前实现使用：
+
+```bash
+grep -Fqi 'release not found' "$release_error"
+```
+
+这会把包含该短语的更长错误、额外诊断或混合认证/网络错误误判为缺失，然后进入有写权限的 `create-draft`。请规范化单个末尾换行后要求 stderr 内容精确等于固定文本（大小写也应按官方固定错误匹配），其他任意空输出、多行输出、前后缀、HTTP/认证/GraphQL/网络错误全部返回查询失败。测试需至少覆盖精确 not-found 进入首次创建，以及“含 not-found 子串但还有其他内容”不得创建。
+
+### R13-B6：asset API URL 只绑定前缀，未绑定完整规范路径
+
+当前 `jq` 仅要求 `startsWith("https://api.github.com/repos/<repo>/releases/assets/")`，随后 `split("/") | last | tonumber`。例如此前缀后为 `unexpected/path/123` 仍会被接受为资产 ID 123。该 ID 随后可用于删除和下载 API，不能接受非规范 URL。
+
+请要求完整 URL 恰为固定 scheme/host/repository/path 加一个十进制数字 ID，前缀后不得有额外斜杠、路径、query、fragment、符号或空值。可从固定前缀移除后验证 remainder 为纯数字再 `tonumber`。新增错误 host、错误 repo、额外路径、非数字 ID 的负向映射测试，并保留正常 draft/公开 JSON 映射正向证据。
+
+### R13-B7：AI 审计日志尚未记录第三次真实失败与本轮决策
+
+当前 worktree 只有发布脚本、测试和本 Round 13 报告修改；`docs/ai-governance/AI_CHANGE_LOG.md` 没有未提交更新，末尾停留在第二次 recovery。根据仓库工作流，第三次真实 run、已知 `create-draft` 阶段、认证日志不可见边界、改用官方 pending-draft discovery 的理由及“尚未发布”必须在实现提交中记录，不能等远端成功后回填并丢失失败决策链。
+
+### 已通过测试与不变量
+
+- `bash -n`（发布、测试、候选验证脚本）：PASS。
+- 现有 `scripts/test-publish-github-release.sh`：PASS；首次、draft、公开幂等状态机及既有冲突、查询故障、上传认证/仓库/annotation 测试均通过，但尚未覆盖 B5/B6 的欺骗性输入。
+- `git diff --check`：PASS。
+- run `29176911435` 的七个既有 job 均成功；tag 不变且公开 Release API 仍为 404。审核未执行远端写操作。
+
+实施终端修正 B5–B7 后，由同一 reviewer 复跑状态机、精确错误分类与 URL 映射正负向、shell/diff 门禁，并再次核验远端不变性。最终 PASS 前禁止推送。
+
+## 第三次 recovery 修正最终复审
+
+复审结论：**PASS（允许推送 release discovery 修正）**
+
+B5–B7 已关闭：
+
+- `gh release view` 失败时，stderr 经 shell 去除末尾换行后必须整体精确等于固定 `release not found` 才返回“缺失”；任意其他查询错误返回 10 并阻止创建。普通认证/API 故障及包含 not-found 短语但附带认证错误的混合文本负例均安全失败。
+- asset `apiUrl` 必须以固定 `https://api.github.com/repos/<目标仓库>/releases/assets/` 开头，去掉该完整前缀后的全部剩余内容必须只含十进制数字，再转换为 ID。错误 host、错误 repository、额外路径和非数字 ID 四类负例均失败；正常 draft/公开 JSON 映射仍通过完整状态机。
+- `AI_CHANGE_LOG.md` 已记录准确 run `29176911435`、`create-draft` 阶段、公开/认证信息边界、pending-tag draft discovery 决策及仍待审核/远端运行状态，没有提前宣称 Release 或 MVP 完成。
+
+最终复跑：相关 shell `bash -n` PASS；完整 `scripts/test-publish-github-release.sh` PASS；`git diff --check` PASS。既有完整项目门禁已在本轮前一修正复审通过，本次只修改 discovery、JSON 映射及其测试/审计记录。远端 tag 与公开 Release 状态在初审时已只读复核且本次实施/复审没有远端写动作。
+
+允许推送本修正并等待准确 main run。只有七个既有 job、固定 source candidate 校验和 recovery 发布步骤全部成功，才可核验公开 Release；随后仍必须删除一次性 recovery job并完成最终发布证据复审。
+
 ## 官方 GitHub CLI 上传恢复修正审核
 
 审核结论：**PASS（允许推送以 `gh release upload` 替代 curl 的恢复修正）**

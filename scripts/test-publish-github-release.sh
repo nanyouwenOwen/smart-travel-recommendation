@@ -49,6 +49,28 @@ if [[ "$1" == release && "$2" == upload ]]; then
   done
   exit 0
 fi
+if [[ "$1" == release && "$2" == view ]]; then
+  shift 2; tag="$1"; shift; repo=''; fields=''
+  while (($#)); do
+    case "$1" in
+      --repo) repo="$2"; shift 2 ;;
+      --json) fields="$2"; shift 2 ;;
+      *) exit 91 ;;
+    esac
+  done
+  [[ "$repo" == "${MOCK_EXPECT_REPO:-owner/repo}" ]]
+  [[ "$fields" == databaseId,tagName,name,body,isDraft,isPrerelease,assets ]]
+  [[ "${MOCK_VIEW_FAIL:-0}" != 1 ]] || { echo "${MOCK_VIEW_ERROR:-mock authenticated query failure}" >&2; exit 42; }
+  state="$MOCK_STATE/releases.json"
+  release="$(jq -c --arg tag "$tag" '.[] | select(.tag_name == $tag)' "$state")"
+  [[ -n "$release" ]] || { echo 'release not found' >&2; exit 1; }
+  jq --arg prefix "${MOCK_ASSET_API_PREFIX:-https://api.github.com/repos/owner/repo/releases/assets/}" \
+    --arg suffix "${MOCK_ASSET_API_SUFFIX:-}" \
+    '{databaseId:.id,tagName:.tag_name,name,body,isDraft:.draft,isPrerelease:.prerelease,
+    assets:[.assets[] | {apiUrl:($prefix + (.id|tostring) + $suffix),name,size}]}' \
+    <<<"$release"
+  exit 0
+fi
 [[ "$1" == api ]]; shift
 method=GET; input=''; endpoint=''
 declare -A fields=()
@@ -140,6 +162,24 @@ expect_failure 'published asset conflict' run_publish
 seed_state false 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" complete
 expect_failure 'release API failure' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_API_FAIL=1 \
   GH_TOKEN=mock-token scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
+expect_failure 'release discovery failure is not absence' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_VIEW_FAIL=1 \
+  GH_TOKEN=mock-token scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+expect_failure 'release discovery mixed not-found error' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_VIEW_FAIL=1 \
+  MOCK_VIEW_ERROR='release not found: authentication failed' GH_TOKEN=mock-token \
+  scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+seed_state false 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" complete
+for bad_url in wrong-host wrong-repository extra-path nonnumeric-id; do
+  case "$bad_url" in
+    wrong-host) prefix='https://example.com/repos/owner/repo/releases/assets/'; suffix='' ;;
+    wrong-repository) prefix='https://api.github.com/repos/other/repo/releases/assets/'; suffix='' ;;
+    extra-path) prefix='https://api.github.com/repos/owner/repo/releases/assets/extra/'; suffix='' ;;
+    nonnumeric-id) prefix='https://api.github.com/repos/owner/repo/releases/assets/'; suffix='x' ;;
+  esac
+  expect_failure "release asset API URL $bad_url" env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" \
+    MOCK_ASSET_API_PREFIX="$prefix" MOCK_ASSET_API_SUFFIX="$suffix" GH_TOKEN=mock-token \
+    scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+done
 
 rm -rf "$tmp/state"; mkdir -p "$tmp/state/assets"; echo 100 >"$tmp/state/next-id"; echo '[]' >"$tmp/state/releases.json"
 annotation_output="$tmp/upload-annotation.txt"
