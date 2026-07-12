@@ -30,11 +30,12 @@ remote_dir="$(mktemp -d)"
 upload_error="$(mktemp)"
 publish_stage="startup"
 publish_detail="none"
+identity_diagnostic="phase=not-evaluated"
 cleanup() {
   status=$?; trap - EXIT
   if ((status != 0)) && [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
-    printf '::error title=GitHub Release failed::stage=%s; detail=%s; exit=%s\n' \
-      "$publish_stage" "$publish_detail" "$status" >&2
+    printf '::error title=GitHub Release failed::stage=%s; detail=%s; exit=%s; identity=%s\n' \
+      "$publish_stage" "$publish_detail" "$status" "$identity_diagnostic" >&2
   fi
   rm -f "$release_json" "$release_error" || true
   [[ -z "$upload_error" ]] || rm -f "$upload_error" || true
@@ -94,6 +95,19 @@ validate_metadata() {
 
 validate_release_identity() {
   local expected_id="${1:-}"
+  local phase="${2:-initial-discovery}"
+  local tag_type tag_value draft_type draft_value id_type id_positive id_match upload_value
+  tag_type="$(jq -r 'if has("tag_name")|not then "missing" elif .tag_name == null then "null" elif (.tag_name|type) == "string" then "string" else "other" end' "$release_json")"
+  tag_value="$(jq -r --arg tag "$tag" 'if has("tag_name")|not then "missing" elif .tag_name == null then "null" elif (.tag_name|type) != "string" then "unexpected" elif .tag_name == "" then "empty" elif .tag_name == $tag then "expected" else "unexpected" end' "$release_json")"
+  draft_type="$(jq -r 'if has("draft")|not then "missing" elif .draft == null then "null" elif (.draft|type) == "boolean" then "boolean" else "other" end' "$release_json")"
+  draft_value="$(jq -r 'if has("draft")|not then "missing" elif .draft == null then "null" elif .draft == true then "true" elif .draft == false then "false" else "invalid" end' "$release_json")"
+  id_type="$(jq -r 'if has("id")|not then "missing" elif .id == null then "null" else (.id|type) end' "$release_json")"
+  id_positive="$(jq -r 'if (.id|type) == "number" and .id > 0 and (.id|floor) == .id then "yes" else "no" end' "$release_json")"
+  if [[ -z "$expected_id" ]]; then id_match="not-applicable"; else
+    id_match="$(jq -r --arg expected "$expected_id" 'if (.id|type) == "number" and (.id|tostring) == $expected then "yes" else "no" end' "$release_json")"
+  fi
+  upload_value="$(jq -r --arg repo "$repo" 'if has("upload_url")|not then "missing" elif (.upload_url|type) != "string" then "invalid-type" elif (.id|type) == "number" and .upload_url == ("https://uploads.github.com/repos/" + $repo + "/releases/" + (.id|tostring) + "/assets{?name,label}") then "exact" else "mismatch" end' "$release_json")"
+  identity_diagnostic="phase=$phase,tag-type=$tag_type,tag-value=$tag_value,draft-type=$draft_type,draft-value=$draft_value,id-type=$id_type,id-positive=$id_positive,id-match=$id_match,upload=$upload_value"
   publish_detail="identity-tag"
   local actual_tag draft_state
   actual_tag="$(jq -r '.tag_name // ""' "$release_json")"
@@ -148,7 +162,7 @@ elif [[ "$load_status" != 0 ]]; then
 fi
 
 publish_stage="validate-release-identity"
-validate_release_identity
+validate_release_identity "" initial-discovery
 release_id="$(jq -r .id "$release_json")"
 draft="$(jq -r .draft "$release_json")"
 
@@ -189,7 +203,7 @@ if [[ "$draft" == true ]]; then
   publish_detail="load-by-id"
   load_release_by_id "$release_id"
   publish_detail="identity"
-  validate_release_identity "$release_id"
+  validate_release_identity "$release_id" uploaded-draft
   publish_detail="metadata"
   validate_metadata
   publish_detail="draft-state"
@@ -212,7 +226,7 @@ if [[ "$(jq -r .draft "$release_json")" == true ]]; then
   publish_detail="load-by-id"
   load_release_by_id "$release_id"
   publish_detail="identity"
-  validate_release_identity "$release_id"
+  validate_release_identity "$release_id" published-release
 fi
 
 publish_detail="metadata"

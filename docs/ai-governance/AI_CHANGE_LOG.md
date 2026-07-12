@@ -2,6 +2,11 @@
 
 详细历史见 [`../ai-usage-log.md`](../ai-usage-log.md)。本文件从项目封板开始提供短索引，后续每轮追加一项。
 
+## 2026-07-12 - GitHub pending-tag draft 身份分类诊断
+
+- 准确证据：性能稳定性提交 `36d0a4a` 的 run `29194958320` 中六项质量门、`release-candidate`、固定候选校验及八项上传均成功；恢复仍在上传后固定 ID 重载的 `identity-tag` 失败。公开 API 尚无 Release，不能把附件上传等同于发布完成。
+- 实施决定：暂不继续放宽 tag 判定；只为三个身份验证阶段增加固定白名单分类，区分 tag/draft 的字段类型和值类别、ID 正整数/连续性及 upload URL 是否精确。annotation 不输出 API 原文、tag 原值、URL、正文、附件或凭据；取得准确 run 分类后才选择单一最小修正。
+
 ## 2026-07-12 - 性能烟测稳定测量边界
 
 - 触发：多个 main run 在相同 `container-smoke` 第 7/10 阶段偶发 k6 阈值失败，而相邻运行通过；旧 annotation 没有实际 p95、失败率或端点证据，因此没有把原因臆测为 runner 噪声。

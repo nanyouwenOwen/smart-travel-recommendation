@@ -110,8 +110,12 @@ if [[ "$method" == GET && "$endpoint" =~ /releases/([0-9]+)$ ]]; then
   response_id="${MOCK_ID_GET_ID_JSON:-$id}"
   jq --argjson response_id "$response_id" --arg repo "${MOCK_EXPECT_REPO:-owner/repo}" '
     .id=$response_id |
-    (if .draft and env.MOCK_DRAFT_PENDING_TAG_EMPTY == "1" then .tag_name="" else . end) |
-    .upload_url=("https://uploads.github.com/repos/" + $repo + "/releases/" + ($response_id|tostring) + "/assets{?name,label}")' \
+    (if env.MOCK_ID_GET_TAG_JSON != null and env.MOCK_ID_GET_TAG_JSON != "" then
+       .tag_name=(env.MOCK_ID_GET_TAG_JSON|fromjson)
+     elif .draft and env.MOCK_DRAFT_PENDING_TAG_EMPTY == "1" then .tag_name="" else . end) |
+    .upload_url=(if env.MOCK_ID_GET_UPLOAD_JSON != null and env.MOCK_ID_GET_UPLOAD_JSON != "" then
+      (env.MOCK_ID_GET_UPLOAD_JSON|fromjson)
+    else ("https://uploads.github.com/repos/" + $repo + "/releases/" + ($response_id|tostring) + "/assets{?name,label}") end)' \
     <<<"$release"
   exit 0
 fi
@@ -265,6 +269,45 @@ PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_DRAFT_PENDING_TAG_EMPTY=1 GH_
   scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes" >/dev/null
 [[ "$(jq -r '.[0].draft' "$tmp/state/releases.json")" == false ]]
 echo 'pending draft tag becomes strict after publish: PASS'
+
+seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
+identity_output="$tmp/identity-annotation.txt"
+identity_notes="$tmp/identity-notes.md"
+printf '# Identity notes\n\nnotes-secret-sentinel\n' >"$identity_notes"
+seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$identity_notes")" none
+set +e
+PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_ID_GET_TAG_JSON='"malicious%0A::warning::leak"' \
+  MOCK_EXPECT_TOKEN=identity-token-secret GH_TOKEN=identity-token-secret GITHUB_ACTIONS=true \
+  scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$identity_notes" >"$identity_output" 2>&1
+identity_status=$?
+set -e
+[[ "$identity_status" != 0 ]]
+grep -Fq 'identity=phase=uploaded-draft,tag-type=string,tag-value=unexpected,draft-type=boolean,draft-value=true,id-type=number,id-positive=yes,id-match=yes,upload=exact' "$identity_output"
+! grep -Fq 'malicious' "$identity_output"
+! grep -Fq '::warning::leak' "$identity_output"
+! grep -Fq 'notes-secret-sentinel' "$identity_output"
+! grep -Fq 'identity-token-secret' "$identity_output"
+[[ "$(jq -r '.[0].draft' "$tmp/state/releases.json")" == true ]]
+echo 'identity diagnostic is classified and untrusted values are redacted: PASS'
+
+for upload_case in '"https://evil.invalid/%0A::warning::url-secret"' '42'; do
+  seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$identity_notes")" none
+  upload_identity_output="$tmp/upload-identity-$(printf %s "$upload_case" | sha256sum | cut -c1-8).txt"
+  set +e
+  PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_ID_GET_UPLOAD_JSON="$upload_case" \
+    MOCK_EXPECT_TOKEN=identity-token-secret GH_TOKEN=identity-token-secret GITHUB_ACTIONS=true \
+    scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$identity_notes" >"$upload_identity_output" 2>&1
+  upload_identity_status=$?
+  set -e
+  [[ "$upload_identity_status" != 0 ]]
+  if [[ "$upload_case" == 42 ]]; then expected_upload=invalid-type; else expected_upload=mismatch; fi
+  grep -Fq "phase=uploaded-draft,tag-type=string,tag-value=expected,draft-type=boolean,draft-value=true,id-type=number,id-positive=yes,id-match=yes,upload=$expected_upload" "$upload_identity_output"
+  for secret in evil.invalid warning url-secret notes-secret-sentinel identity-token-secret; do
+    ! grep -Fq "$secret" "$upload_identity_output"
+  done
+  [[ "$(jq -r '.[0].draft' "$tmp/state/releases.json")" == true ]]
+done
+echo 'identity upload URL diagnostics are classified and redacted: PASS'
 
 rm -rf "$tmp/state"; mkdir -p "$tmp/state/assets"; echo 100 >"$tmp/state/next-id"; echo '[]' >"$tmp/state/releases.json"
 annotation_output="$tmp/upload-annotation.txt"
