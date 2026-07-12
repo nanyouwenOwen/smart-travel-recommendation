@@ -29,3 +29,9 @@
 - 触发：Round 09 审核证明旧 security job 忽略 unfixed 漏洞，且无认证审核无法下载 artifact 核对内部绑定，发布清单第 2/5 项因此不成立。
 - 实施：security job 先从当前 checkout 打包实际后端 JAR，再用固定 Trivy 0.58.2 对所有 High/Critical（包含无修复版本项）阻断；secret 扫描改为仅扫描 `git archive HEAD` 的受版本控制源文件。新增候选校验脚本，上传前验证固定文件集、完整 Git SHA、不自包含的 SHA-256 清单、双 CycloneDX SBOM 和 JAR/tar 可读性，并写入脱敏 Actions summary。
 - 验证证据：完整 `scripts/check.sh`、Shell 语法和 diff check 通过；实施与独立 reviewer 均重建候选并正向通过，reviewer 对删除/置空/SHA 错误/篡改/自包含清单/坏 SBOM/坏 JAR/坏 tar/额外文件 9 类负向用例均确认非零退出。提交 `0f1930b` 的 GitHub Actions run `29166218083` 七个 job 全绿，security 四个关键步骤和候选上传前校验均成功，产物 digest 见 `PROJECT_HANDOFF.md`；Round 10 独立审核最终 `PASS`。
+
+## 2026-07-12 - v0.1.0 正式发布授权与机制
+
+- 用户决定：明确授权创建并推送 annotated tag `v0.1.0`，创建 GitHub Release 并附加候选产物。
+- 认证边界：本地终端有 Git SSH 推送权限，但无 GitHub API token 且未安装 `gh`；不索取长期 token，而是使用精确 tag 触发的 Actions release job 及仅该 job 具有的短期 `contents: write` `GITHUB_TOKEN`。
+- 原子性：tag run 重跑全部质量链并使用同 run artifact；只接受 annotated `v0.1.0` 且目标必须为 `origin/main` 可达提交。Release 先作为 draft 组装，八个固定附件远端下载并重做 SHA/校验和/SBOM/归档校验后才公开。在实际远端核验前 `TODO.md` 不勾选。
