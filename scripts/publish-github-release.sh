@@ -176,16 +176,22 @@ if [[ "$draft" == true ]]; then
     fi
   done
   publish_stage="validate-uploaded-release"
-  publish_detail="none"
+  publish_detail="load-by-id"
   load_release_by_id "$release_id"
+  publish_detail="identity"
   validate_release_identity "$release_id"
+  publish_detail="metadata"
   validate_metadata
+  publish_detail="draft-state"
   [[ "$(jq -r .draft "$release_json")" == true ]]
 fi
 
+publish_detail="metadata"
 validate_metadata
 publish_stage="verify-draft-assets"
+publish_detail="asset-set"
 validate_assets
+publish_detail="asset-downloads"
 download_and_verify_assets
 
 if [[ "$(jq -r .draft "$release_json")" == true ]]; then
@@ -193,14 +199,20 @@ if [[ "$(jq -r .draft "$release_json")" == true ]]; then
   release_id="$(jq -er .id "$release_json")"
   gh api --method PATCH "repos/$repo/releases/$release_id" -F draft=false -F prerelease=false >/dev/null
   publish_stage="validate-public-release"
+  publish_detail="load-by-id"
   load_release_by_id "$release_id"
+  publish_detail="identity"
   validate_release_identity "$release_id"
 fi
 
+publish_detail="metadata"
 validate_metadata
+publish_detail="published-state"
 [[ "$(jq -r .draft "$release_json")" == false ]]
+publish_detail="asset-set"
 validate_assets
 publish_stage="verify-public-assets"
+publish_detail="asset-downloads"
 download_and_verify_assets
 publish_stage="complete"
 echo "Published and remotely verified $tag"
