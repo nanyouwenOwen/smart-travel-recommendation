@@ -95,11 +95,15 @@ validate_metadata() {
 
 validate_release_identity() {
   local expected_id="${1:-}"
+  publish_detail="identity-tag"
   [[ "$(jq -r .tag_name "$release_json")" == "$tag" ]]
+  publish_detail="identity-id-type"
   jq -e '.id | type == "number" and . > 0 and floor == .' "$release_json" >/dev/null
   local id
   id="$(jq -r .id "$release_json")"
+  publish_detail="identity-id-continuity"
   [[ -z "$expected_id" || "$id" == "$expected_id" ]]
+  publish_detail="identity-upload-url"
   [[ "$(jq -r .upload_url "$release_json")" == \
     "https://uploads.github.com/repos/$repo/releases/$id/assets{?name,label}" ]]
 }
