@@ -2,6 +2,13 @@
 
 详细历史见 [`../ai-usage-log.md`](../ai-usage-log.md)。本文件从项目封板开始提供短索引，后续每轮追加一项。
 
+## 2026-07-12 - v0.1.0 公开发布与一次性恢复清理
+
+- 远端结果：最小 tag 规范化提交 `197904ab7a101ab6baa86173c3180d53f6e4cc91` 的 run `29195654260`（attempt 1）中六项质量任务、`release-candidate` 与 `release-recovery-v0-1-0` 全部成功。候选 artifact digest 为 `sha256:2322dc6f6ee0816b0d66363c2fdd84935169ba9428164d44887a3a6a89e95449`；性能 summary digest 为 `sha256:7565b9d932ff0e7b524b328a46e5a4af85644f01784df6141ee72b80ff7b2a3e`。公开 Release ID `352766714` 为 `v0.1.0`、非 draft、非 prerelease。
+- 独立下载验证：公开八项附件名称精确且非空；仓库外临时目录运行 `scripts/verify-release-candidate.sh` 后，SHA256、`GIT_SHA`、双 SBOM、后端 JAR 和前端归档全部通过并绑定 `52864b1aa72f56081abfc0bd146415d2a5f1ccb8`。
+- 清理决定：删除只用于本次恢复的 main-branch recovery job、跨 run 参数和 Release 写权限；保留严格 tag-only 的通用发布实现与状态机测试。真实 MiMo/DeepSeek key、全新 Codespace 和生产部署没有被虚构为完成。
+- 收尾状态：删除与文档同步当前仍是待提交工作树；独立审核通过后才能推送，并须等待该准确 SHA 的七项普通 CI 单次全绿。该终验未完成前不把仓库清理闭环记录为最终完成。
+
 ## 2026-07-12 - GitHub pending-tag draft 身份分类诊断
 
 - 准确证据：性能稳定性提交 `36d0a4a` 的 run `29194958320` 中六项质量门、`release-candidate`、固定候选校验及八项上传均成功；恢复仍在上传后固定 ID 重载的 `identity-tag` 失败。公开 API 尚无 Release，不能把附件上传等同于发布完成。

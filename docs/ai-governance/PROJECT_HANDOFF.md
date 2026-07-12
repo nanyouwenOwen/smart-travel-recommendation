@@ -7,7 +7,7 @@
 ## 权威资料与边界
 
 - 产品目标、版本、规则：根 `README.md`。
-- 任务状态：`TODO.md`；“发布 MVP”未勾选表示 tag/Release 尚未获得授权，不表示实现未完成。
+- 任务状态：`TODO.md`；MVP 与 `v0.1.0` GitHub Release 已完成，真实模型凭据验收、全新 Codespace 人工验收和生产部署仍是独立的人工作业。
 - 机器契约：`docs/openapi.yaml`；人类接口约束：`docs/api-contract.md`；数据模型：`docs/data-model.md`。
 - 每轮计划/审核：`docs/plans/`、`docs/reviews/`。
 - 部署/运维：`docs/deployment.md`、`operations.md`、`backup-restore.md`、`troubleshooting.md`。
@@ -31,7 +31,11 @@ Round 08 Compose smoke 可靠性候选证据：提交 `4016764`；[GitHub Action
 
 Round 08 证据同步 HEAD `2eb538b` 的 [GitHub Actions run `29165523778`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29165523778) 也已七个 job 全绿；artifact `smart-travel-assistant-0.1.0-rc` digest 为 `sha256:de642becadd443090be4121d874e90c68fa8d6cf4a3f092200afc5810092fedd`。Round 09 审核确认仍缺两项发布正向证据：安全门会忽略无修复版本漏洞，artifact 内部文件/GIT SHA/校验和未直接核对。在下一轮闭环前不得宣称自动化发布证据完整，tag/GitHub Release 也仍未获得授权。
 
-Round 10 已关闭上述两项缺口：提交 `0f1930b513d8d0038e51eb07e5435a3c624fce7c` 的 [GitHub Actions run `29166218083`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29166218083) 七个 job 全绿，安全门对当前 JAR 扫描所有 High/Critical 且不忽略 unfixed，候选产物在上传前完成文件/SHA/校验和/SBOM/归档自校验。Artifact `smart-travel-assistant-0.1.0-rc` 为 56,319,725 bytes，digest `sha256:77ba570b13e6c8a7bb2f65f300907d1c744c9a1e41c451354fbe2f79e4506cda`；Round 10 独立审核最终 `PASS`。自动化发布前置条件现已完整。2026-07-12 用户已授权 `v0.1.0` tag/GitHub Release 及候选附件，当前状态为发布机制实施与审核中，不得提前宣称已发布。
+Round 10 已关闭上述两项缺口：提交 `0f1930b513d8d0038e51eb07e5435a3c624fce7c` 的 [GitHub Actions run `29166218083`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29166218083) 七个 job 全绿，安全门对当前 JAR 扫描所有 High/Critical 且不忽略 unfixed，候选产物在上传前完成文件/SHA/校验和/SBOM/归档自校验。Artifact `smart-travel-assistant-0.1.0-rc` 为 56,319,725 bytes，digest `sha256:77ba570b13e6c8a7bb2f65f300907d1c744c9a1e41c451354fbe2f79e4506cda`；Round 10 独立审核最终 `PASS`。
+
+正式发布证据：Annotated tag `v0.1.0` peeled commit 固定为 `52864b1aa72f56081abfc0bd146415d2a5f1ccb8`；提交 `197904ab7a101ab6baa86173c3180d53f6e4cc91` 的 [run `29195654260`](https://github.com/nanyouwenOwen/smart-travel-recommendation/actions/runs/29195654260) 中六项质量任务、候选与 recovery 全部成功。公开 [Release v0.1.0](https://github.com/nanyouwenOwen/smart-travel-recommendation/releases/tag/v0.1.0) ID 为 `352766714`，非 draft、非 prerelease；八项公开附件下载后完整通过候选验证并绑定固定 SHA。一次性 recovery job 已删除，普通 main CI 不再持有 Release 写路径；仅保留已经审核、只响应精确 `v0.1.0` tag push 的发布机制。
+
+本段 recovery 删除状态在本轮收尾提交推送前仅描述待提交工作树；必须以收尾准确 SHA 的七项普通 CI 全绿作为终验。终验失败时，本交接不得被引用为完成证据。
 
 ## 接手步骤
 

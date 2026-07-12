@@ -29,9 +29,9 @@ MiMo 验收时设置 `TRIP_AI_PROVIDER=xiaomi-mimo-anthropic` 和 `CONSULTATION_
 
 从 GitHub 创建全新 Codespace，等待 post-create 完成，运行 `scripts/dev.sh`；确认 5173 端口公开、8080 私有，从转发 URL 完成注册、地点选择、行程、实时演示数据和 SSE 咨询。关闭/重启 Codespace 后再次验证。把日期、提交 SHA 和结果更新到 `docs/reports/mvp-verification.md`。
 
-## 3. 正式发布授权（已授权，执行中）
+## 3. 正式发布授权（已完成）
 
-2026-07-12，负责人已明确授权创建并推送 `v0.1.0` annotated tag、创建 GitHub Release 并附加候选产物。发布将由只对精确 tag 触发的 GitHub Actions 以短期 `GITHUB_TOKEN` 执行；在远端 tag、Release 和八个附件实际核验前，`TODO.md` 仍不勾选。
+2026-07-12，负责人明确授权的 `v0.1.0` annotated tag、GitHub Release 和候选附件已经完成并公开验证；本项不再需要人工操作。未来版本仍需单独授权，不能复用本次授权移动或覆盖 `v0.1.0`。
 
 ## 4. 生产部署前
 
