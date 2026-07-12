@@ -481,3 +481,30 @@ Reviewer 实际执行：
 - 再次只读核验：`v0.1.0` 仍为 annotated tag，peeled commit 仍为 `52864b1aa72f56081abfc0bd146415d2a5f1ccb8`；公开 Release API 仍返回 `404`。审核没有创建、修改或发布 Release。
 
 本 PASS 只授权推送当前两文件修正并等待其准确 main run。只有 recovery job 的固定身份、候选校验、官方上传、远端八附件下载复验和最终发布全部成功后，才能进入一次性 recovery job 删除与最终发布证据阶段。
+
+## pending-tag draft 身份兼容修正审核
+
+审核结论：**PASS（允许推送该最小身份兼容修正）**
+
+### 失败证据与允许范围
+
+实施端提供的准确 run `29188436060` 已通过完整质量链、candidate、固定恢复身份校验及八项上传，失败发生在按首次发现 ID 重载 draft 后的 `identity-tag`。本次修正只处理 GitHub pending-tag draft 的 REST 响应可暂时返回空 `tag_name` 这一边界，没有放宽首次发现、ID、upload URL、metadata、资产集合、内容下载或公开态验证。
+
+### 安全与幂等审核
+
+- 首次 `load_release` 后调用 `validate_release_identity` 时没有 `expected_id`，因此仍必须满足 `actual_tag == v0.1.0`；空 tag 或其他 tag 都会在任何 draft 写操作前失败。只有这次 tag discovery 同时通过正整数 ID 与固定 repository/同 ID upload URL 校验后，脚本才锁定 `release_id`。
+- 后续宽容条件同时要求调用者传入已锁定的 `expected_id` 且响应仍为 `draft=true`。此时只允许 `tag_name` 为空或仍等于固定 tag；任何非空异 tag 继续 fail-closed。
+- 同一响应随后仍必须通过正整数 ID、与首次 ID 完全连续、精确 uploads host/repository/同 ID/template、固定标题/正文、非 prerelease、八项非空资产以及逐项下载候选验证。空 tag 不能把脚本切换到另一 Release 或绕过候选验证。
+- publish PATCH 之后按同一 ID 重载时 `draft=false`，兼容分支自动关闭并再次严格要求 `tag_name == v0.1.0`。已公开 Release 的首次发现也从不进入宽容分支。因此 pending draft 的暂态兼容不会延伸到公开结果或幂等重跑。
+- `validate_metadata` 删除重复 tag 断言不会减少验证次数或改变状态机：tag 归入专门的 identity 函数后，在初始 discovery、上传后重载及公开后重载三个边界分别按对应严格度验证；metadata 仍负责 prerelease、标题、正文和 upload URL。
+- 上传失败仍保留 draft，重试仍会清理旧附件后重建；ID 连续性、固定八资产和公开前后远端内容复验没有变化，故现有恢复幂等性保持成立。
+
+### 测试与门禁证据
+
+- 新增 pending-tag 用例让按 ID 获取的 draft 响应返回空 tag，完整走完上传、draft 资产验证、公开 PATCH及公开后严格身份验证，最终 `draft=false`；若生产逻辑把空 tag 宽容扩展到公开态，代码中的 `draft_state != true` 分支会直接拒绝。
+- 既有不同数字/字符串 ID 连续性负例、初始 draft 非正整数 ID、错误 upload URL、公开 metadata/资产冲突、API/discovery 故障、七类上传诊断、部分上传重试以及首次创建/既有 draft/公开幂等路径全部继续 PASS。
+- `bash -n scripts/publish-github-release.sh scripts/test-publish-github-release.sh`：PASS。
+- `scripts/test-publish-github-release.sh`：PASS，输出包含 `reloaded release identity continuity: PASS`、`pending draft tag becomes strict after publish: PASS` 与最终 `publish release state-machine tests: PASS`。
+- 本地环境未安装 `shellcheck`，因此没有把未执行的本地 shellcheck 冒充通过；本轮实际变更为小范围 Bash 条件与 mock，语法和完整状态机已由上述门禁覆盖，远端质量链仍需作为最终证据。
+
+允许推送本修正并等待准确 main run。只有该 run 自身重新通过完整质量链、candidate、recovery、公开 Release 和真实八附件复验后，才能删除一次性 recovery job并进入最终发布证据复审。

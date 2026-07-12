@@ -83,7 +83,6 @@ load_release_by_id() {
 }
 
 validate_metadata() {
-  [[ "$(jq -r .tag_name "$release_json")" == "$tag" ]]
   [[ "$(jq -r .prerelease "$release_json")" == false ]]
   [[ "$(jq -r .name "$release_json")" == "$title" ]]
   [[ "$(jq -r .body "$release_json")" == "$(cat "$notes_file")" ]]
@@ -96,7 +95,14 @@ validate_metadata() {
 validate_release_identity() {
   local expected_id="${1:-}"
   publish_detail="identity-tag"
-  [[ "$(jq -r .tag_name "$release_json")" == "$tag" ]]
+  local actual_tag draft_state
+  actual_tag="$(jq -r '.tag_name // ""' "$release_json")"
+  draft_state="$(jq -r '.draft // false' "$release_json")"
+  if [[ -z "$expected_id" || "$draft_state" != true ]]; then
+    [[ "$actual_tag" == "$tag" ]]
+  else
+    [[ -z "$actual_tag" || "$actual_tag" == "$tag" ]]
+  fi
   publish_detail="identity-id-type"
   jq -e '.id | type == "number" and . > 0 and floor == .' "$release_json" >/dev/null
   local id

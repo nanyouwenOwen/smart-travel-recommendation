@@ -110,6 +110,7 @@ if [[ "$method" == GET && "$endpoint" =~ /releases/([0-9]+)$ ]]; then
   response_id="${MOCK_ID_GET_ID_JSON:-$id}"
   jq --argjson response_id "$response_id" --arg repo "${MOCK_EXPECT_REPO:-owner/repo}" '
     .id=$response_id |
+    (if .draft and env.MOCK_DRAFT_PENDING_TAG_EMPTY == "1" then .tag_name="" else . end) |
     .upload_url=("https://uploads.github.com/repos/" + $repo + "/releases/" + ($response_id|tostring) + "/assets{?name,label}")' \
     <<<"$release"
   exit 0
@@ -258,6 +259,12 @@ for changed_id in '2' '"1"'; do
   [[ "$(jq '.[0].assets | map(.name) | unique | length' "$tmp/state/releases.json")" == 8 ]]
 done
 echo 'reloaded release identity continuity: PASS'
+
+seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
+PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_DRAFT_PENDING_TAG_EMPTY=1 GH_TOKEN=mock-token \
+  scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes" >/dev/null
+[[ "$(jq -r '.[0].draft' "$tmp/state/releases.json")" == false ]]
+echo 'pending draft tag becomes strict after publish: PASS'
 
 rm -rf "$tmp/state"; mkdir -p "$tmp/state/assets"; echo 100 >"$tmp/state/next-id"; echo '[]' >"$tmp/state/releases.json"
 annotation_output="$tmp/upload-annotation.txt"
