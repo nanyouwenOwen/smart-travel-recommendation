@@ -103,6 +103,17 @@ state="$MOCK_STATE/releases.json"
 [[ "${MOCK_API_FAIL:-0}" != 1 ]] || { echo 'mock API failure' >&2; exit 42; }
 
 if [[ "$method" == GET && "$endpoint" == *'/releases?per_page=100' ]]; then cat "$state"; exit 0; fi
+if [[ "$method" == GET && "$endpoint" =~ /releases/([0-9]+)$ ]]; then
+  id="${BASH_REMATCH[1]}"
+  release="$(jq -c --argjson id "$id" '.[] | select(.id == $id)' "$state")"
+  [[ -n "$release" ]] || exit 1
+  response_id="${MOCK_ID_GET_ID_JSON:-$id}"
+  jq --argjson response_id "$response_id" --arg repo "${MOCK_EXPECT_REPO:-owner/repo}" '
+    .id=$response_id |
+    .upload_url=("https://uploads.github.com/repos/" + $repo + "/releases/" + ($response_id|tostring) + "/assets{?name,label}")' \
+    <<<"$release"
+  exit 0
+fi
 if [[ "$method" == POST && "$endpoint" == */releases ]]; then
   release="$(jq -n --arg tag "${fields[tag_name]}" --arg name "${fields[name]}" --arg body "${fields[body]}" \
     '{id:1,tag_name:$tag,name:$name,body:$body,draft:true,prerelease:false,assets:[]}')"
@@ -234,7 +245,7 @@ echo 'draft immutable identity before writes: PASS'
 for changed_id in '2' '"1"'; do
   seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
   set +e
-  PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_SECOND_VIEW_ID_JSON="$changed_id" \
+  PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_ID_GET_ID_JSON="$changed_id" \
     GH_TOKEN=mock-token GITHUB_ACTIONS=false \
     scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes" >/dev/null 2>&1
   changed_status=$?

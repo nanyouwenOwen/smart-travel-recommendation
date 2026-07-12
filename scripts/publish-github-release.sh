@@ -74,6 +74,14 @@ load_release() {
   rm -f "$view_json"
 }
 
+load_release_by_id() {
+  local id="$1"
+  if ! gh api "repos/$repo/releases/$id" >"$release_json"; then
+    echo "failed to query release id $id" >&2
+    return 12
+  fi
+}
+
 validate_metadata() {
   [[ "$(jq -r .tag_name "$release_json")" == "$tag" ]]
   [[ "$(jq -r .prerelease "$release_json")" == false ]]
@@ -169,7 +177,7 @@ if [[ "$draft" == true ]]; then
   done
   publish_stage="validate-uploaded-release"
   publish_detail="none"
-  load_release
+  load_release_by_id "$release_id"
   validate_release_identity "$release_id"
   validate_metadata
   [[ "$(jq -r .draft "$release_json")" == true ]]
@@ -185,7 +193,7 @@ if [[ "$(jq -r .draft "$release_json")" == true ]]; then
   release_id="$(jq -er .id "$release_json")"
   gh api --method PATCH "repos/$repo/releases/$release_id" -F draft=false -F prerelease=false >/dev/null
   publish_stage="validate-public-release"
-  load_release
+  load_release_by_id "$release_id"
   validate_release_identity "$release_id"
 fi
 
