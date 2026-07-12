@@ -127,8 +127,10 @@ if [[ "$method" == POST && "$endpoint" == */releases ]]; then
 fi
 if [[ "$method" == PATCH && "$endpoint" =~ /releases/([0-9]+)$ ]]; then
   id="${BASH_REMATCH[1]}"; draft="${fields[draft]:-}"
-  jq --argjson id "$id" --arg name "${fields[name]:-}" --arg body "${fields[body]:-}" --arg draft "$draft" '
+  [[ "${fields[tag_name]:-}" == v0.1.0 ]]
+  jq --argjson id "$id" --arg tag "${fields[tag_name]:-}" --arg name "${fields[name]:-}" --arg body "${fields[body]:-}" --arg draft "$draft" '
     map(if .id == $id then
+      (if $tag != "" then .tag_name=$tag else . end) |
       (if $name != "" then .name=$name else . end) |
       (if $body != "" then .body=$body else . end) |
       (if $draft != "" then .draft=($draft == "true") else . end) |
@@ -265,10 +267,11 @@ done
 echo 'reloaded release identity continuity: PASS'
 
 seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
-PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_DRAFT_PENDING_TAG_EMPTY=1 GH_TOKEN=mock-token \
-  scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes" >/dev/null
-[[ "$(jq -r '.[0].draft' "$tmp/state/releases.json")" == false ]]
-echo 'pending draft tag becomes strict after publish: PASS'
+expect_failure 'pending draft tag remains strict after normalization' env PATH="$tmp/bin:$PATH" \
+  MOCK_STATE="$tmp/state" MOCK_DRAFT_PENDING_TAG_EMPTY=1 GH_TOKEN=mock-token \
+  scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+[[ "$(jq -r '.[0].draft' "$tmp/state/releases.json")" == true ]]
+echo 'pending draft tag is never accepted without strict normalization: PASS'
 
 seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
 identity_output="$tmp/identity-annotation.txt"

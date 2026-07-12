@@ -96,6 +96,7 @@ validate_metadata() {
 validate_release_identity() {
   local expected_id="${1:-}"
   local phase="${2:-initial-discovery}"
+  local strict_tag="${3:-false}"
   local tag_type tag_value draft_type draft_value id_type id_positive id_match upload_value
   tag_type="$(jq -r 'if has("tag_name")|not then "missing" elif .tag_name == null then "null" elif (.tag_name|type) == "string" then "string" else "other" end' "$release_json")"
   tag_value="$(jq -r --arg tag "$tag" 'if has("tag_name")|not then "missing" elif .tag_name == null then "null" elif (.tag_name|type) != "string" then "unexpected" elif .tag_name == "" then "empty" elif .tag_name == $tag then "expected" else "unexpected" end' "$release_json")"
@@ -112,7 +113,7 @@ validate_release_identity() {
   local actual_tag draft_state
   actual_tag="$(jq -r '.tag_name // ""' "$release_json")"
   draft_state="$(jq -r '.draft // false' "$release_json")"
-  if [[ -z "$expected_id" || "$draft_state" != true ]]; then
+  if [[ "$strict_tag" == true || -z "$expected_id" || "$draft_state" != true ]]; then
     [[ "$actual_tag" == "$tag" ]]
   else
     [[ -z "$actual_tag" || "$actual_tag" == "$tag" ]]
@@ -162,14 +163,14 @@ elif [[ "$load_status" != 0 ]]; then
 fi
 
 publish_stage="validate-release-identity"
-validate_release_identity "" initial-discovery
+validate_release_identity "" initial-discovery true
 release_id="$(jq -r .id "$release_json")"
 draft="$(jq -r .draft "$release_json")"
 
 if [[ "$draft" == true ]]; then
   publish_stage="prepare-draft"
   gh api --method PATCH "repos/$repo/releases/$release_id" \
-    -f name="$title" -f body="$(cat "$notes_file")" \
+    -f tag_name="$tag" -f name="$title" -f body="$(cat "$notes_file")" \
     -F draft=true -F prerelease=false >/dev/null
   while IFS= read -r asset_id; do
     gh api --method DELETE "repos/$repo/releases/assets/$asset_id"
@@ -200,10 +201,14 @@ if [[ "$draft" == true ]]; then
     fi
   done
   publish_stage="validate-uploaded-release"
+  publish_detail="normalize-authorized-tag"
+  gh api --method PATCH "repos/$repo/releases/$release_id" \
+    -f tag_name="$tag" -f name="$title" -f body="$(cat "$notes_file")" \
+    -F draft=true -F prerelease=false >/dev/null
   publish_detail="load-by-id"
   load_release_by_id "$release_id"
   publish_detail="identity"
-  validate_release_identity "$release_id" uploaded-draft
+  validate_release_identity "$release_id" uploaded-draft true
   publish_detail="metadata"
   validate_metadata
   publish_detail="draft-state"
@@ -221,12 +226,13 @@ download_and_verify_assets
 if [[ "$(jq -r .draft "$release_json")" == true ]]; then
   publish_stage="publish-release"
   release_id="$(jq -er .id "$release_json")"
-  gh api --method PATCH "repos/$repo/releases/$release_id" -F draft=false -F prerelease=false >/dev/null
+  gh api --method PATCH "repos/$repo/releases/$release_id" \
+    -f tag_name="$tag" -F draft=false -F prerelease=false >/dev/null
   publish_stage="validate-public-release"
   publish_detail="load-by-id"
   load_release_by_id "$release_id"
   publish_detail="identity"
-  validate_release_identity "$release_id" published-release
+  validate_release_identity "$release_id" published-release true
 fi
 
 publish_detail="metadata"

@@ -6,6 +6,8 @@
 
 - 准确证据：性能稳定性提交 `36d0a4a` 的 run `29194958320` 中六项质量门、`release-candidate`、固定候选校验及八项上传均成功；恢复仍在上传后固定 ID 重载的 `identity-tag` 失败。公开 API 尚无 Release，不能把附件上传等同于发布完成。
 - 实施决定：暂不继续放宽 tag 判定；只为三个身份验证阶段增加固定白名单分类，区分 tag/draft 的字段类型和值类别、ID 正整数/连续性及 upload URL 是否精确。annotation 不输出 API 原文、tag 原值、URL、正文、附件或凭据；取得准确 run 分类后才选择单一最小修正。
+- 准确分类：诊断提交 `4f984ba` 的 run `29195389783` 六项质量门、候选与八项上传成功；固定 ID 响应分类为 `uploaded-draft/string/unexpected/boolean-true/positive-and-matching-ID/exact-upload`。因此拒绝把非预期字符串当作 pending tag 兼容。
+- 最小修正：只对已严格发现并锁定的同一 draft ID 显式 PATCH 授权 tag `v0.1.0`，上传后再次写回该固定 tag，再按 ID 重载并严格要求字符串相等；公开 PATCH 也显式携带 tag，公开后仍严格复验。若 GitHub 不接受规范化或仍返回任何缺失/空/异 tag，流程继续 fail-closed。
 
 ## 2026-07-12 - 性能烟测稳定测量边界
 

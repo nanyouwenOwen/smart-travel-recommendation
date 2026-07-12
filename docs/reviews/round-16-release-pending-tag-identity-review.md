@@ -64,3 +64,35 @@
 - 人工复核生产 diff：首次严格 tag、正整数 ID、ID 连续性、精确 upload URL、draft 状态、metadata、固定八附件、远端下载与公开后严格 tag 均未削弱。
 
 本 PASS 仅批准推送第一阶段诊断并等待该准确提交的远端 run；它不等于 Release 已发布，也不授权在没有新 run 分类证据时实施第二阶段兼容。
+
+## 2026-07-12 第二阶段独立审核
+
+**PASS**。准确远端分类支持“在已严格发现并锁定的同一 draft ID 上显式规范化授权 tag，再严格重载验证”的单一修正；实现没有接受或吞掉 `unexpected`，也没有扩大 pending-tag 兼容范围。
+
+### 准确远端证据核对
+
+- GitHub 公共 Actions API 返回 run `29195389783` 的完整 SHA 为 `4f984ba24636db78c908896b5aee3e811acea35e`，attempt 1，状态 completed。`backend`、`frontend`、`security`、`openapi`、`e2e`、`container-smoke` 与 `release-candidate` 均为 success；仅一次性 `release-recovery-v0-1-0` 为 failure。
+- 该 SHA 的 recovery check run `86657651842` 公共 annotation 精确为：`stage=validate-uploaded-release; detail=identity-tag; ... phase=uploaded-draft,tag-type=string,tag-value=unexpected,draft-type=boolean,draft-value=true,id-type=number,id-positive=yes,id-match=yes,upload=exact`。这不是相邻 run、rerun 或本地 mock 结论。
+- failure 位于上传循环完成后的固定 ID 重载身份验证；结合 `release-candidate=success`，该证据支持计划中拒绝 `unexpected` 并显式写回授权 tag 的分支，不支持把异 tag 当空 tag。
+
+### 安全边界审阅
+
+1. 初始 discovery 仍调用 strict tag 验证，且发生在 prepare、DELETE 和上传之前；API/解析错误仍不被视为不存在。
+2. Release ID 仍由首次严格 discovery 锁定，并继续要求正整数、按 ID 重载时连续；新增 PATCH 全部只使用该 `release_id`。
+3. prepare PATCH、上传后规范化 PATCH 与 publish PATCH 均显式携带脚本固定授权值 `v0.1.0`。上传后立即按同一 ID 重载并以 strict 模式要求 tag 精确相等；GitHub 若拒绝 PATCH、返回 missing/null/empty/异 tag 或错误类型，流程均非零停止。
+4. 实现没有将准确证据中的 `unexpected` 加入接受集合。原先仅限 draft/expected-ID 的空 tag 兼容代码仍存在于函数默认分支，但三个生产调用点现全部显式传入 strict；当前生产路径不存在该兼容调用。
+5. upload URL 仍严格绑定 uploads.github.com、固定 repo 与同一 ID；draft、prerelease、标题、notes、精确八附件、非零大小与逐项远端下载验证顺序未削弱。公开 PATCH 之后仍按同一 ID 重载，strict tag、metadata、公开状态、附件和远端内容均再次验证。
+6. 没有移动 annotated tag、替换固定候选、重试取优、忽略失败或扩大日志输出。治理记录只保存固定分类与决策，不包含原始响应或凭据。
+
+### 测试与门禁
+
+- mock 的所有 Release PATCH 现在硬性要求 `tag_name=v0.1.0` 并把该值写回状态，覆盖 prepare、上传后规范化和 publish 三类 PATCH。
+- `MOCK_DRAFT_PENDING_TAG_EMPTY=1` 会在每次 draft by-ID GET 中继续返回空 tag；该负例在严格规范化后仍失败并保持 `draft=true`，证明空/缺失表示没有被默许。
+- 既有恶意非空 tag 用例仍失败并保持 draft；ID 类型/连续性、URL 错配、metadata/附件/下载、公开后严格性和上传失败恢复覆盖继续通过。
+- `bash -n scripts/publish-github-release.sh scripts/test-publish-github-release.sh`：PASS。
+- `scripts/test-publish-github-release.sh`：PASS。
+- `git diff --check`：PASS。
+
+### 结论边界
+
+本 PASS 批准推送第二阶段最小修正并等待该准确 SHA 的完整远端结果。它不代表 Release 已公开；只有同一远端 run 通过严格 draft/公开验证及八附件远端复验后，才能进入 recovery 清理与 MVP 完成流程。
