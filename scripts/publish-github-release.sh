@@ -47,7 +47,7 @@ load_release() {
   local view_json
   view_json="$(mktemp)"
   if ! gh release view "$tag" --repo "$repo" \
-    --json databaseId,tagName,name,body,isDraft,isPrerelease,assets \
+    --json databaseId,tagName,name,body,isDraft,isPrerelease,uploadUrl,assets \
     >"$view_json" 2>"$release_error"; then
     rm -f "$view_json"
     if [[ "$(<"$release_error")" == 'release not found' ]]; then return 1; fi
@@ -61,6 +61,7 @@ load_release() {
     body,
     draft: .isDraft,
     prerelease: .isPrerelease,
+    upload_url: .uploadUrl,
     assets: [.assets[] | {
       id: (.apiUrl
         | if startswith($asset_prefix) and (ltrimstr($asset_prefix) | test("^[0-9]+$"))
@@ -78,6 +79,10 @@ validate_metadata() {
   [[ "$(jq -r .prerelease "$release_json")" == false ]]
   [[ "$(jq -r .name "$release_json")" == "$title" ]]
   [[ "$(jq -r .body "$release_json")" == "$(cat "$notes_file")" ]]
+  local id
+  id="$(jq -er .id "$release_json")"
+  [[ "$(jq -r .upload_url "$release_json")" == \
+    "https://uploads.github.com/repos/$repo/releases/$id/assets{?name,label}" ]]
 }
 
 validate_assets() {
@@ -125,10 +130,14 @@ if [[ "$draft" == true ]]; then
     gh api --method DELETE "repos/$repo/releases/assets/$asset_id"
   done < <(jq -r '.assets[].id' "$release_json")
   publish_stage="upload-assets"
+  upload_url="$(jq -er .upload_url "$release_json")"
+  upload_url="${upload_url%%\{*}"
   for name in "${assets[@]}"; do
     upload_error="$(mktemp)"
     set +e
-    gh release upload "$tag" "$asset_dir/$name" --repo "$repo" 2>"$upload_error"
+    gh api --method POST --silent \
+      -H 'Content-Type: application/octet-stream' \
+      --input "$asset_dir/$name" "$upload_url?name=$name" 2>"$upload_error"
     upload_status=$?
     set -e
     if ((upload_status != 0)); then

@@ -307,6 +307,31 @@ B8/B9 已关闭：
 
 允许推送本修正并等待准确 main run。只有完整质量链、candidate、recovery 和真实远端八附件复验全部成功后，才可删除一次性 recovery job并进入最终 MVP 发布证据复审。
 
+## 第五次上传修正审核
+
+审核结论：**PASS（允许推送复用已发现 draft `uploadUrl` 的修正）**
+
+### 真实失败与修正范围
+
+实施终端记录的 run `29177426902` 已通过六个质量 job、candidate、固定 source artifact 与 recovery 只读校验；首项 `CHANGELOG.md` 精确分类为 `release-not-found`。这把失败限定为 `gh release upload` 内部再次执行 `FetchRelease`，而非候选内容、固定附件集或并发。修正不再二次按 tag 查 Release，而是复用已经由认证 `release view` 成功发现的同一 draft `uploadUrl`。
+
+### 安全与状态机审核
+
+- discovery JSON 新增官方 `uploadUrl` 字段；`validate_metadata` 要求其完整值精确等于 `https://uploads.github.com/repos/<固定仓库>/releases/<当前 databaseId>/assets{?name,label}`。因此 scheme、host、repository、Release 数字 ID、路径和模板必须同时匹配，不能由返回 JSON 注入另一目的地。
+- 只有上述精确验证通过后才去掉固定 `{?name,label}` 模板。最终 absolute endpoint 只附加 `?name=<name>`；name 来自八项固定安全白名单，仅包含字母、数字、点和连字符，不接受用户输入、斜杠、`&`、`#`、`%` 或 workflow 内容。
+- GitHub CLI 当前官方 `gh api` 实现明确在 endpoint 含 `://` 时直接将其作为 request URL，并用 `http.NewRequest` 发出请求；因此 absolute uploads URL 是实现支持的路径，而不是 mock 专属行为。参考：[GitHub CLI `httpRequest` 源码](https://github.com/cli/cli/blob/trunk/pkg/cmd/api/http.go)。请求仍使用同一 GitHub CLI 认证 HTTP client 和 job 短期 `GH_TOKEN`，未新增 header 拼接、secret 或权限。
+- 每项请求固定为 POST、`Content-Type: application/octet-stream`、`--input` 对应非空候选文件和 `--silent`。响应正文不输出，stderr 仍进入临时文件并只映射到固定类别；既有原退出码、恶意响应隔离、临时文件 cleanup 证据保持有效。
+- draft 仍先删除已存在附件，再逐项上传；中途失败不公开，下次运行重新清空。上传后必须重新 discovery，验证 metadata/upload URL、精确八项及非零大小，逐项下载候选复验后才公开，公开后再次复验。已公开完全匹配路径仍只读幂等，冲突路径仍失败。
+
+### 负向与门禁证据
+
+- upload URL 错误 host、错误 repository、错误 Release ID、缺失标准模板四类均在任何上传前失败。
+- mock 对 absolute URL、octet-stream header、短期 token、非空 input 和固定目标 Release 做精确断言；错误 token、七类分类、恶意 stderr、部分上传第六项失败及重试完整八项测试继续全部通过。
+- 相关 shell `bash -n`：PASS；完整发布状态机：PASS；`git diff --check`：PASS。
+- 只读 tag fetch 再次确认 `v0.1.0` 仍为 annotated tag且 peeled commit 未变；审核未执行远端写操作。
+
+允许推送并等待准确 main run。仍必须由该 run 自身通过完整质量链、candidate、recovery 及真实远端八附件下载复验；成功后立即删除一次性 recovery job并进入最终发布证据复审。
+
 ## 官方 GitHub CLI 上传恢复修正审核
 
 审核结论：**PASS（允许推送以 `gh release upload` 替代 curl 的恢复修正）**

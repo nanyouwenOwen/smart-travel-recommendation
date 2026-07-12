@@ -63,27 +63,31 @@ if [[ "$1" == release && "$2" == view ]]; then
     esac
   done
   [[ "$repo" == "${MOCK_EXPECT_REPO:-owner/repo}" ]]
-  [[ "$fields" == databaseId,tagName,name,body,isDraft,isPrerelease,assets ]]
+  [[ "$fields" == databaseId,tagName,name,body,isDraft,isPrerelease,uploadUrl,assets ]]
   [[ "${MOCK_VIEW_FAIL:-0}" != 1 ]] || { echo "${MOCK_VIEW_ERROR:-mock authenticated query failure}" >&2; exit 42; }
   state="$MOCK_STATE/releases.json"
   release="$(jq -c --arg tag "$tag" '.[] | select(.tag_name == $tag)' "$state")"
   [[ -n "$release" ]] || { echo 'release not found' >&2; exit 1; }
   jq --arg prefix "${MOCK_ASSET_API_PREFIX:-https://api.github.com/repos/owner/repo/releases/assets/}" \
     --arg suffix "${MOCK_ASSET_API_SUFFIX:-}" \
+    --arg upload_url "${MOCK_UPLOAD_URL:-https://uploads.github.com/repos/owner/repo/releases/1/assets{?name,label}}" \
     '{databaseId:.id,tagName:.tag_name,name,body,isDraft:.draft,isPrerelease:.prerelease,
+    uploadUrl:$upload_url,
     assets:[.assets[] | {apiUrl:($prefix + (.id|tostring) + $suffix),name,size}]}' \
     <<<"$release"
   exit 0
 fi
 [[ "$1" == api ]]; shift
-method=GET; input=''; endpoint=''
+method=GET; input=''; endpoint=''; content_type=''
 declare -A fields=()
 while (($#)); do
   case "$1" in
     --method) method="$2"; shift 2 ;;
     --input) input="$2"; shift 2 ;;
     -f|-F) pair="$2"; fields["${pair%%=*}"]="${pair#*=}"; shift 2 ;;
-    -H|--hostname) shift 2 ;;
+    -H) [[ "$2" == 'Content-Type: application/octet-stream' ]] && content_type="$2"; shift 2 ;;
+    --hostname) shift 2 ;;
+    --silent) shift ;;
     --paginate) shift ;;
     *) endpoint="$1"; shift ;;
   esac
@@ -113,6 +117,14 @@ if [[ "$method" == DELETE && "$endpoint" =~ /assets/([0-9]+)$ ]]; then
 fi
 if [[ "$method" == POST && "$endpoint" =~ /releases/([0-9]+)/assets\?name=(.+)$ ]]; then
   release_id="${BASH_REMATCH[1]}"; name="${BASH_REMATCH[2]}"; id="$(cat "$MOCK_STATE/next-id")"
+  [[ "$endpoint" == "https://uploads.github.com/repos/owner/repo/releases/$release_id/assets?name=$name" ]]
+  [[ "$content_type" == 'Content-Type: application/octet-stream' ]]
+  [[ "${GH_TOKEN:-}" == "${MOCK_EXPECT_TOKEN:-mock-token}" ]]
+  [[ -f "$input" && -s "$input" ]]
+  if [[ "$name" == "${MOCK_UPLOAD_FAIL_NAME:-}" ]]; then
+    printf '%s\n' "${MOCK_UPLOAD_ERROR:-mock upload failure}" >&2
+    exit "${MOCK_UPLOAD_STATUS:-1}"
+  fi
   echo $((id + 1)) >"$MOCK_STATE/next-id"; cp "$input" "$MOCK_STATE/assets/$id"
   size="$(stat -c %s "$input")"
   jq --argjson release_id "$release_id" --argjson id "$id" --arg name "$name" --argjson size "$size" '
@@ -184,6 +196,16 @@ for bad_url in wrong-host wrong-repository extra-path nonnumeric-id; do
     MOCK_ASSET_API_PREFIX="$prefix" MOCK_ASSET_API_SUFFIX="$suffix" GH_TOKEN=mock-token \
     scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
 done
+for bad_upload_url in \
+  'https://example.com/repos/owner/repo/releases/1/assets{?name,label}' \
+  'https://uploads.github.com/repos/other/repo/releases/1/assets{?name,label}' \
+  'https://uploads.github.com/repos/owner/repo/releases/2/assets{?name,label}' \
+  'https://uploads.github.com/repos/owner/repo/releases/1/assets'; do
+  expect_failure 'release upload URL mismatch' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" \
+    MOCK_UPLOAD_URL="$bad_upload_url" GH_TOKEN=mock-token \
+    scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+done
+echo 'release upload URL binding: PASS'
 
 rm -rf "$tmp/state"; mkdir -p "$tmp/state/assets"; echo 100 >"$tmp/state/next-id"; echo '[]' >"$tmp/state/releases.json"
 annotation_output="$tmp/upload-annotation.txt"
