@@ -76,6 +76,47 @@ if [[ "$method" == GET && "$endpoint" =~ /assets/([0-9]+)$ ]]; then cat "$MOCK_S
 echo "unsupported mock gh call: $method $endpoint" >&2; exit 90
 MOCK
 chmod +x "$tmp/bin/gh"
+cat >"$tmp/bin/curl" <<'MOCK_CURL'
+#!/usr/bin/env bash
+set -euo pipefail
+input=''; url=''; method=''; accept=''; authorization=''; api_version=''; content_type=''
+while (($#)); do
+  case "$1" in
+    --data-binary) input="${2#@}"; shift 2 ;;
+    --request) method="$2"; shift 2 ;;
+    -H)
+      case "$2" in
+        'Accept: '*) accept="$2" ;;
+        'Authorization: '*) authorization="$2" ;;
+        'X-GitHub-Api-Version: '*) api_version="$2" ;;
+        'Content-Type: '*) content_type="$2" ;;
+      esac
+      shift 2 ;;
+    --fail-with-body|--silent|--show-error|-L) shift ;;
+    http*) url="$1"; shift ;;
+    *) shift ;;
+  esac
+done
+[[ "$method" == POST ]]
+[[ "$accept" == 'Accept: application/vnd.github+json' ]]
+[[ "$authorization" == "Authorization: Bearer ${MOCK_EXPECT_TOKEN:-mock-token}" ]]
+[[ "$api_version" == 'X-GitHub-Api-Version: 2022-11-28' ]]
+[[ "$content_type" == 'Content-Type: application/octet-stream' ]]
+[[ -f "$input" && -s "$input" ]]
+prefix="https://uploads.github.com/repos/${MOCK_EXPECT_REPO:-owner/repo}/releases/"
+[[ "$url" == "$prefix"* ]]
+suffix="${url#"$prefix"}"
+[[ "$suffix" =~ ^([0-9]+)/assets\?name=([^/?]+)$ ]]
+release_id="${BASH_REMATCH[1]}"; name="${BASH_REMATCH[2]}"; id="$(cat "$MOCK_STATE/next-id")"
+echo $((id + 1)) >"$MOCK_STATE/next-id"; cp "$input" "$MOCK_STATE/assets/$id"
+size="$(stat -c %s "$input")"
+jq --argjson release_id "$release_id" --argjson id "$id" --arg name "$name" --argjson size "$size" '
+  map(if .id == $release_id then .assets += [{id:$id,name:$name,size:$size}] else . end)' \
+  "$MOCK_STATE/releases.json" >"$MOCK_STATE/new"
+mv "$MOCK_STATE/new" "$MOCK_STATE/releases.json"
+echo '{}'
+MOCK_CURL
+chmod +x "$tmp/bin/curl"
 
 seed_state() {
   local draft="$1" title="$2" body="$3" asset_mode="$4"
@@ -96,7 +137,12 @@ seed_state() {
   fi
 }
 
-run_publish() { PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"; }
+run_publish_with() {
+  local token="$1" github_actions="$2"
+  PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_EXPECT_TOKEN=mock-token GH_TOKEN="$token" GITHUB_ACTIONS="$github_actions" \
+    scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+}
+run_publish() { run_publish_with mock-token false; }
 expect_failure() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then echo "$name: unexpected PASS" >&2; exit 1; else echo "$name: expected failure"; fi; }
 
 rm -rf "$tmp/state"; mkdir -p "$tmp/state/assets"; echo 100 >"$tmp/state/next-id"; echo '[]' >"$tmp/state/releases.json"
@@ -113,5 +159,35 @@ seed_state false 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" extra
 expect_failure 'published asset conflict' run_publish
 seed_state false 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" complete
 expect_failure 'release API failure' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_API_FAIL=1 \
-  scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+  GH_TOKEN=mock-token scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+
+rm -rf "$tmp/state"; mkdir -p "$tmp/state/assets"; echo 100 >"$tmp/state/next-id"; echo '[]' >"$tmp/state/releases.json"
+annotation_output="$tmp/upload-annotation.txt"
+set +e; run_publish_with wrong-token true >"$annotation_output" 2>&1; annotation_status=$?; set -e
+[[ "$annotation_status" != 0 ]]
+annotation="$(cat "$annotation_output")"
+[[ "$(grep -c '^::error title=GitHub Release failed::' "$annotation_output")" == 1 ]]
+[[ "$annotation" == *"stage=upload-assets; exit=$annotation_status"* ]]
+for forbidden in wrong-token 'Authorization:' 'application/octet-stream' changelog; do
+  [[ "$annotation" != *"$forbidden"* ]] || { echo "annotation leaked $forbidden" >&2; exit 1; }
+done
+echo 'upload auth failure annotation: PASS'
+
+rm -rf "$tmp/state"; mkdir -p "$tmp/state/assets"; echo 100 >"$tmp/state/next-id"; echo '[]' >"$tmp/state/releases.json"
+local_output="$tmp/upload-local.txt"
+set +e; run_publish_with wrong-token false >"$local_output" 2>&1; local_status=$?; set -e
+[[ "$local_status" == "$annotation_status" ]]
+! grep -q '::error' "$local_output"
+echo 'upload auth failure local mode: PASS'
+
+curl_args=(--fail-with-body --silent --show-error -L --request POST
+  -H 'Accept: application/vnd.github+json'
+  -H 'Authorization: Bearer mock-token'
+  -H 'X-GitHub-Api-Version: 2022-11-28'
+  -H 'Content-Type: application/octet-stream'
+  --data-binary "@$assets/CHANGELOG.md")
+expect_failure 'upload wrong host' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_EXPECT_TOKEN=mock-token \
+  curl "${curl_args[@]}" 'https://example.com/repos/owner/repo/releases/1/assets?name=CHANGELOG.md'
+expect_failure 'upload wrong repository' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_EXPECT_TOKEN=mock-token \
+  curl "${curl_args[@]}" 'https://uploads.github.com/repos/other/repo/releases/1/assets?name=CHANGELOG.md'
 echo 'publish release state-machine tests: PASS'

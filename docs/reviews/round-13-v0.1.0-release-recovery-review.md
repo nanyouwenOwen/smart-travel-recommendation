@@ -88,3 +88,75 @@ job 级 condition 包含 `github.event_name == 'push'`，脚本又检查了 `GIT
 - 再次只读 fetch/API 核验：`v0.1.0` 仍为 annotated tag，peeled commit 仍为 `52864b1aa72f56081abfc0bd146415d2a5f1ccb8` 且可从 `origin/main` 到达；公开 Release API 仍为 `404`。本轮审核未创建、修改或发布 Release。
 
 本 PASS 只授权按计划推送一次性 recovery 实现提交。推送后的准确 main run 必须让七个既有 job 全部成功，且 recovery job 成功并远端复验 Release；随后必须立即删除一次性 recovery job、补齐发布证据并再次由同一独立 reviewer 审核。当前不得提前勾选 `TODO.md` 的“发布 MVP”，也不得把本次本地 PASS 当作 GitHub Release 已完成。
+
+## 首次 recovery 失败后的修正审核
+
+审核结论：**FAIL（禁止推送当前上传修正）**
+
+准确 main run `29176419521` 的公共 API 证据显示：提交 `33e600b3034363c9d44f70ad57f89c17c9fc8860` 上七个既有 job 全部成功；`release-recovery-v0-1-0` 的身份/source run、固定跨 run artifact 下载和固定候选校验步骤成功，仅 `Recover and verify v0.1.0 Release` 失败。公开 Release API 仍为 `404`；无法认证枚举 draft，因此没有把猜测写成根因。`v0.1.0` 仍为 annotated tag且 peeled commit 未变。
+
+实施修正把附件上传从 `gh api --hostname uploads.github.com` 改为 GitHub REST 示例形态的 `curl`：POST 到固定 uploads endpoint、Bearer `GH_TOKEN`、固定 API/Accept/Content-Type header 和 `--data-binary` 文件体；上传前后的严格八附件及远端下载复验没有移除。新增 EXIT trap 仅输出固定阶段名和退出码，不打印 token、header、附件内容或响应正文。设计方向成立，但当前测试不足以证明关键修正。
+
+### R13-B3：上传 mock 没有验证本次修正的 HTTP 不变量
+
+新 mock `curl` 对 `-H` 和 `--request` 只做 `shift 2`，既不记录也不断言。因此下列任一回归都仍会让三条正向测试通过：
+
+- 删除或写错 `Authorization: Bearer ...`；
+- 删除或写错 `Content-Type: application/octet-stream`、Accept 或 API version；
+- 把 `POST` 改成其他 method；
+- header 中使用错误 token 值。
+
+首次 recovery 正是在发布写步骤立即失败，本次提交的核心就是纠正真实上传请求。测试必须 fail-closed 地断言 method、精确 uploads host/path、固定安全文件名、Bearer 使用注入的 mock token、API version、Accept、Content-Type 和 `--data-binary` 输入；还应有至少一条错误/缺失认证或上传请求失败的负向用例，证明不会继续公开 Release。mock 和测试日志不得回显真实或 mock token。
+
+### R13-B4：新增发布阶段诊断没有回归测试
+
+EXIT annotation 是本次为下一次远端失败提供可审计阶段证据的新行为，但当前测试所有负向输出都被 `/dev/null 2>&1` 丢弃，没有验证：
+
+- `GITHUB_ACTIONS=true` 时准确输出固定 `stage` 和原始非零 exit；
+- 本地模式不输出 Actions annotation；
+- 输出不包含 `GH_TOKEN`、Authorization header、响应正文或附件内容；
+- cleanup 不把原始非零状态改写为成功或其他状态。
+
+请对 mock curl 注入固定非零退出，在 `upload-assets` 阶段捕获 stderr 与退出码，并覆盖上述边界。阶段值只能来自脚本内固定枚举，不得吸收外部响应或文件名。
+
+### 本次已通过证据
+
+- `bash -n`（发布、候选验证和测试脚本）：PASS。
+- `scripts/test-publish-github-release.sh` 当前 3 条正向、4 条负向：PASS，但因 B3/B4 对新行为覆盖不足，不能作为本修正的充分证据。
+- `git diff --check`：PASS。
+- `./scripts/check.sh`：PASS；前端/后端既有门禁无退化。
+- source run `29176419521`、jobs、远端 tag 与公开 Release 的只读事实和 AI log 一致；AI log 没有宣称未知根因或发布完成。
+
+修正 B3/B4 后由同一 reviewer 复跑 shell syntax、状态机、上传请求正负向、annotation 安全性、diff/project gates，并再次确认 tag/Release 未改变。最终 PASS 前禁止推送该修正恢复提交。
+
+## 上传修正第一次复审
+
+复审结论：**FAIL（B3/B4 尚未完全关闭）**
+
+新增测试已经有效改善以下证据：mock 现在要求 POST、Accept、Bearer mock token、API version、octet-stream 和非空 `@file`；错误 token 会在真实 upload 分支失败；Actions 模式只出现一条固定 `upload-assets` annotation，且输出排除 token、Authorization、Content-Type 和测试附件内容；本地模式无 annotation并与 Actions 模式返回相同非零状态。脚本语法、完整状态机测试和 `git diff --check` 均 PASS。
+
+仍有两个必须修正的精确断言：
+
+1. **B3 剩余：URL 未绑定官方 host/repository。** mock 当前只用 `[[ "$url" =~ /releases/.../assets... ]]`，没有断言 scheme、`uploads.github.com`、`/repos/owner/repo/` 和 URL 整体边界。把生产 URL 改为任意主机或错误 repository、但保留末尾 release/assets 路径，测试仍会通过。请精确匹配本测试固定的 `https://uploads.github.com/repos/owner/repo/releases/<id>/assets?name=<固定安全文件名>`，并至少证明错误 host 或 repo 会失败。
+2. **B4 剩余：annotation 未证明保存原始退出码。** 测试只断言文本含 `stage=upload-assets; exit=`，没有从 annotation 取出 exit 数值并与 `annotation_status` 精确比较。当前只能证明“有某个 exit 字段”，不能证明 cleanup 未改写原状态。请断言完整尾部 `exit=$annotation_status`（或等价精确解析比较），并继续要求该状态非零及本地/Actions 一致。
+
+上述是本轮既定安全不变量的测试缺口，不要求修改生产逻辑。修正后复跑同一测试与静态门禁；最终 PASS 前仍禁止推送。
+
+## 上传修正最终复审
+
+复审结论：**PASS（允许推送本次 recovery 修正提交）**
+
+B3/B4 已完整关闭：
+
+- mock upload 现在同时精确要求 POST、四个固定 header、Bearer 预期 mock token、非空 `@file`，以及 `https://uploads.github.com/repos/owner/repo/releases/<数字 id>/assets?name=<单段文件名>` 的完整 host/repository/path 结构；错误 host 与错误 repository 两条负例均按预期失败。生产上传文件名仍只来自脚本内八项固定白名单。
+- upload 认证失败测试捕获真实非零 `annotation_status`，并精确要求 annotation 中 `stage=upload-assets; exit=$annotation_status`；同时证明仅一条 annotation、无 token/header/content-type/附件内容，本地模式无 Actions annotation 且保留相同退出状态。
+
+最终复跑证据：
+
+- 相关三个 shell 文件 `bash -n`：PASS。
+- `scripts/test-publish-github-release.sh`：PASS；3 条正向状态路径、4 条既有冲突/API 负向，以及上传认证、Actions/local 诊断、错误 host、错误 repository 全部通过。
+- `git diff --check`：PASS。
+- 前次修正审核的 `./scripts/check.sh`：PASS；本次仅补测试精确断言，无产品或 workflow 变更。
+- 最终只读远端复核：`v0.1.0` 仍为 annotated tag，peeled commit 仍为固定 `52864b1aa72f56081abfc0bd146415d2a5f1ccb8`；公开 Release API 仍返回 `404`。复审没有实施任何远端写操作。
+
+允许提交并推送本次上传修正，等待其准确 main run。仍必须满足七个既有 job 全绿、recovery 身份/跨 run candidate 校验通过且发布步骤成功；若成功，应立即按计划删除一次性 recovery job、下载复验公开 Release 八项附件、补齐 TODO/清单/交接证据并由同一 reviewer 完成最终发布复审。

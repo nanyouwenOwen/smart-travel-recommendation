@@ -27,7 +27,16 @@ mapfile -t expected_assets < <(printf '%s\n' "${assets[@]}" | LC_ALL=C sort)
 release_json="$(mktemp)"
 matches_json="$(mktemp)"
 remote_dir="$(mktemp -d)"
-cleanup() { rm -f "$release_json" "$matches_json"; rm -rf "$remote_dir"; }
+publish_stage="startup"
+cleanup() {
+  status=$?; trap - EXIT
+  if ((status != 0)) && [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
+    printf '::error title=GitHub Release failed::stage=%s; exit=%s\n' "$publish_stage" "$status" >&2
+  fi
+  rm -f "$release_json" "$matches_json" || true
+  rm -rf "$remote_dir" || true
+  exit "$status"
+}
 trap cleanup EXIT
 
 load_release() {
@@ -68,11 +77,13 @@ download_and_verify_assets() {
 }
 
 set +e
+publish_stage="list-release"
 load_release
 load_status=$?
 set -e
 
 if [[ "$load_status" == 1 ]]; then
+  publish_stage="create-draft"
   gh api --method POST "repos/$repo/releases" \
     -f tag_name="$tag" -f name="$title" -f body="$(cat "$notes_file")" \
     -F draft=true -F prerelease=false >"$release_json"
@@ -85,16 +96,22 @@ release_id="$(jq -er .id "$release_json")"
 draft="$(jq -r .draft "$release_json")"
 
 if [[ "$draft" == true ]]; then
+  publish_stage="prepare-draft"
   gh api --method PATCH "repos/$repo/releases/$release_id" \
     -f name="$title" -f body="$(cat "$notes_file")" \
     -F draft=true -F prerelease=false >/dev/null
   while IFS= read -r asset_id; do
     gh api --method DELETE "repos/$repo/releases/assets/$asset_id"
   done < <(jq -r '.assets[].id' "$release_json")
+  publish_stage="upload-assets"
   for name in "${assets[@]}"; do
-    gh api --hostname uploads.github.com --method POST \
-      -H 'Content-Type: application/octet-stream' --input "$asset_dir/$name" \
-      "repos/$repo/releases/$release_id/assets?name=$name" >/dev/null
+    curl --fail-with-body --silent --show-error -L --request POST \
+      -H 'Accept: application/vnd.github+json' \
+      -H "Authorization: Bearer ${GH_TOKEN:?GH_TOKEN is required}" \
+      -H 'X-GitHub-Api-Version: 2022-11-28' \
+      -H 'Content-Type: application/octet-stream' \
+      --data-binary "@$asset_dir/$name" \
+      "https://uploads.github.com/repos/$repo/releases/$release_id/assets?name=$name" >/dev/null
   done
   load_release
   validate_metadata
@@ -102,10 +119,12 @@ if [[ "$draft" == true ]]; then
 fi
 
 validate_metadata
+publish_stage="verify-draft-assets"
 validate_assets
 download_and_verify_assets
 
 if [[ "$(jq -r .draft "$release_json")" == true ]]; then
+  publish_stage="publish-release"
   release_id="$(jq -er .id "$release_json")"
   gh api --method PATCH "repos/$repo/releases/$release_id" -F draft=false -F prerelease=false >/dev/null
   load_release
@@ -114,5 +133,7 @@ fi
 validate_metadata
 [[ "$(jq -r .draft "$release_json")" == false ]]
 validate_assets
+publish_stage="verify-public-assets"
 download_and_verify_assets
+publish_stage="complete"
 echo "Published and remotely verified $tag"
