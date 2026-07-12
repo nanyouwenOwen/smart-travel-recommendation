@@ -27,9 +27,9 @@ mapfile -t expected_assets < <(printf '%s\n' "${assets[@]}" | LC_ALL=C sort)
 release_json="$(mktemp)"
 release_error="$(mktemp)"
 remote_dir="$(mktemp -d)"
+upload_error="$(mktemp)"
 publish_stage="startup"
 publish_detail="none"
-upload_error=""
 cleanup() {
   status=$?; trap - EXIT
   if ((status != 0)) && [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
@@ -85,6 +85,17 @@ validate_metadata() {
     "https://uploads.github.com/repos/$repo/releases/$id/assets{?name,label}" ]]
 }
 
+validate_release_identity() {
+  local expected_id="${1:-}"
+  [[ "$(jq -r .tag_name "$release_json")" == "$tag" ]]
+  jq -e '.id | type == "number" and . > 0 and floor == .' "$release_json" >/dev/null
+  local id
+  id="$(jq -r .id "$release_json")"
+  [[ -z "$expected_id" || "$id" == "$expected_id" ]]
+  [[ "$(jq -r .upload_url "$release_json")" == \
+    "https://uploads.github.com/repos/$repo/releases/$id/assets{?name,label}" ]]
+}
+
 validate_assets() {
   mapfile -t actual < <(jq -r '.assets[].name' "$release_json" | LC_ALL=C sort)
   [[ "${actual[*]}" == "${expected_assets[*]}" ]]
@@ -118,7 +129,9 @@ elif [[ "$load_status" != 0 ]]; then
   exit "$load_status"
 fi
 
-release_id="$(jq -er .id "$release_json")"
+publish_stage="validate-release-identity"
+validate_release_identity
+release_id="$(jq -r .id "$release_json")"
 draft="$(jq -r .draft "$release_json")"
 
 if [[ "$draft" == true ]]; then
@@ -130,10 +143,10 @@ if [[ "$draft" == true ]]; then
     gh api --method DELETE "repos/$repo/releases/assets/$asset_id"
   done < <(jq -r '.assets[].id' "$release_json")
   publish_stage="upload-assets"
-  upload_url="$(jq -er .upload_url "$release_json")"
-  upload_url="${upload_url%%\{*}"
+  publish_detail="asset-CHANGELOG.md-starting"
+  upload_url="https://uploads.github.com/repos/$repo/releases/$release_id/assets"
   for name in "${assets[@]}"; do
-    upload_error="$(mktemp)"
+    publish_detail="asset-$name-starting"
     set +e
     gh api --method POST --silent \
       -H 'Content-Type: application/octet-stream' \
@@ -150,13 +163,14 @@ if [[ "$draft" == true ]]; then
         esac
         if grep -Fqi "$pattern" "$upload_error"; then upload_reason="$reason"; break; fi
       done
-      rm -f "$upload_error"
       publish_detail="asset-$name-$upload_reason"
       exit "$upload_status"
     fi
-    rm -f "$upload_error"
   done
+  publish_stage="validate-uploaded-release"
+  publish_detail="none"
   load_release
+  validate_release_identity "$release_id"
   validate_metadata
   [[ "$(jq -r .draft "$release_json")" == true ]]
 fi
@@ -170,7 +184,9 @@ if [[ "$(jq -r .draft "$release_json")" == true ]]; then
   publish_stage="publish-release"
   release_id="$(jq -er .id "$release_json")"
   gh api --method PATCH "repos/$repo/releases/$release_id" -F draft=false -F prerelease=false >/dev/null
+  publish_stage="validate-public-release"
   load_release
+  validate_release_identity "$release_id"
 fi
 
 validate_metadata

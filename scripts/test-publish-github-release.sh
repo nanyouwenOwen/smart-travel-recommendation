@@ -68,11 +68,18 @@ if [[ "$1" == release && "$2" == view ]]; then
   state="$MOCK_STATE/releases.json"
   release="$(jq -c --arg tag "$tag" '.[] | select(.tag_name == $tag)' "$state")"
   [[ -n "$release" ]] || { echo 'release not found' >&2; exit 1; }
+  view_count_file="$MOCK_STATE/view-count"
+  view_count=$(( $(cat "$view_count_file" 2>/dev/null || echo 0) + 1 ))
+  echo "$view_count" >"$view_count_file"
+  view_id="$(jq -c .id <<<"$release")"
+  if ((view_count >= 2)) && [[ -n "${MOCK_SECOND_VIEW_ID_JSON:-}" ]]; then view_id="$MOCK_SECOND_VIEW_ID_JSON"; fi
   jq --arg prefix "${MOCK_ASSET_API_PREFIX:-https://api.github.com/repos/owner/repo/releases/assets/}" \
     --arg suffix "${MOCK_ASSET_API_SUFFIX:-}" \
-    --arg upload_url "${MOCK_UPLOAD_URL:-https://uploads.github.com/repos/owner/repo/releases/1/assets{?name,label}}" \
-    '{databaseId:.id,tagName:.tag_name,name,body,isDraft:.draft,isPrerelease:.prerelease,
-    uploadUrl:$upload_url,
+    --argjson view_id "$view_id" \
+    --arg upload_url "${MOCK_UPLOAD_URL:-}" \
+    '{databaseId:$view_id,tagName:.tag_name,name,body,isDraft:.draft,isPrerelease:.prerelease,
+    uploadUrl:(if $upload_url != "" then $upload_url else
+      ("https://uploads.github.com/repos/owner/repo/releases/" + ($view_id|tostring) + "/assets{?name,label}") end),
     assets:[.assets[] | {apiUrl:($prefix + (.id|tostring) + $suffix),name,size}]}' \
     <<<"$release"
   exit 0
@@ -138,7 +145,7 @@ chmod +x "$tmp/bin/gh"
 
 seed_state() {
   local draft="$1" title="$2" body="$3" asset_mode="$4"
-  rm -rf "$tmp/state"; mkdir -p "$tmp/state/assets"; echo 100 >"$tmp/state/next-id"
+  rm -rf "$tmp/state"; mkdir -p "$tmp/state/assets"; echo 100 >"$tmp/state/next-id"; echo 0 >"$tmp/state/view-count"
   jq -n --arg tag v0.1.0 --arg name "$title" --arg body "$body" --argjson draft "$draft" \
     '[{id:1,tag_name:$tag,name:$name,body:$body,draft:$draft,prerelease:false,assets:[]}]' >"$tmp/state/releases.json"
   if [[ "$asset_mode" != none ]]; then
@@ -206,6 +213,40 @@ for bad_upload_url in \
     scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
 done
 echo 'release upload URL binding: PASS'
+
+seed_state true 'stale title' 'stale body' extra
+for bad_id in '"1"' '0' '-1' '1.5'; do
+  jq --argjson id "$bad_id" '.[0].id=$id' "$tmp/state/releases.json" >"$tmp/state/bad"
+  mv "$tmp/state/bad" "$tmp/state/releases.json"
+  before="$(sha256sum "$tmp/state/releases.json")"
+  expect_failure 'draft release ID rejected before writes' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" \
+    GH_TOKEN=mock-token scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+  [[ "$(sha256sum "$tmp/state/releases.json")" == "$before" ]]
+  jq '.[0].id=1' "$tmp/state/releases.json" >"$tmp/state/good"; mv "$tmp/state/good" "$tmp/state/releases.json"
+done
+before="$(sha256sum "$tmp/state/releases.json")"
+expect_failure 'draft upload URL rejected before writes' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" \
+  MOCK_UPLOAD_URL='https://uploads.github.com/repos/other/repo/releases/1/assets{?name,label}' GH_TOKEN=mock-token \
+  scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes"
+[[ "$(sha256sum "$tmp/state/releases.json")" == "$before" ]]
+echo 'draft immutable identity before writes: PASS'
+
+for changed_id in '2' '"1"'; do
+  seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
+  set +e
+  PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_SECOND_VIEW_ID_JSON="$changed_id" \
+    GH_TOKEN=mock-token GITHUB_ACTIONS=false \
+    scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes" >/dev/null 2>&1
+  changed_status=$?
+  set -e
+  [[ "$changed_status" != 0 ]]
+  [[ "$(jq -r '.[0].draft' "$tmp/state/releases.json")" == true ]]
+  [[ "$(jq '.[0].assets | length' "$tmp/state/releases.json")" == 8 ]]
+  run_publish >/dev/null
+  [[ "$(jq -r '.[0].draft' "$tmp/state/releases.json")" == false ]]
+  [[ "$(jq '.[0].assets | map(.name) | unique | length' "$tmp/state/releases.json")" == 8 ]]
+done
+echo 'reloaded release identity continuity: PASS'
 
 rm -rf "$tmp/state"; mkdir -p "$tmp/state/assets"; echo 100 >"$tmp/state/next-id"; echo '[]' >"$tmp/state/releases.json"
 annotation_output="$tmp/upload-annotation.txt"

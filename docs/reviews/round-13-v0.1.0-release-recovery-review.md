@@ -332,6 +332,86 @@ B8/B9 已关闭：
 
 允许推送并等待准确 main run。仍必须由该 run 自身通过完整质量链、candidate、recovery 及真实远端八附件下载复验；成功后立即删除一次性 recovery job并进入最终发布证据复审。
 
+## 第六次最小上传修正审核
+
+审核结论：**FAIL（禁止推送当前 upload URL 构造修正）**
+
+### 已通过审查
+
+- run `29177621742` 的既有证据把失败定位为 `stage=upload-assets; detail=none; exit=1`，且发生在任何固定附件调用前；实施没有把它误分为 HTTP 或附件错误。
+- 移除第二次 `jq -er .upload_url` 后，生产请求不再依赖重新读取模板字段；scheme、uploads host 和 repository 由脚本固定，文件名仍来自八项白名单，上传/验证/公开状态机没有放宽。
+- `publish_detail=resolve-upload-url` 在 URL 构造前设置，每项调用前设置固定 `asset-<name>-starting`，CLI 返回非零后仍由原有固定类别覆盖；所有 detail 字段均为脚本枚举或白名单值，不引入外部文本。
+- 现有 `bash -n`、完整发布状态机测试和 `git diff --check` 均 PASS；AI log 准确记录 run、`detail=none` 边界、未推测 HTTP 根因和待审核状态。
+
+### R13-B10：`release_id` 未被证明为数字，且 draft upload identity 未在写前校验
+
+实现描述称使用“此前已确认的固定数字 `release_id`”，但实际只有：
+
+```bash
+release_id="$(jq -er .id "$release_json")"
+```
+
+`jq -e` 只要求结果不是 `false`/`null`；任意非空字符串都会通过。该值随后直接插入 absolute URL。请在任何 PATCH、附件删除或上传之前要求 `.id` 类型为 number、为正整数，并输出其十进制形式；错误字符串、零、负数、小数均 fail-closed。
+
+此外，`validate_metadata` 中 upload URL 与同一 ID 的严格匹配目前只在上传完成后调用。对于 draft，错误 host/repository/ID/template 的 `uploadUrl` 会先经历 PATCH、删除和上传，再在事后失败；现有四条坏 upload URL 测试使用的是已公开 Release，未覆盖该时序。请拆出写前 immutable identity 校验（至少 tag、正整数 database ID、精确 upload URL/repository/ID/template），在 draft 的任何写操作前调用；title/body 等可恢复字段仍可随后规范化。新增 draft 坏 URL/非数字 ID 测试，断言零 PATCH、零删除、零上传并保持原 draft/附件状态。
+
+### R13-B11：两个新增“首项前”诊断位置没有实际失败测试
+
+当前测试没有让 URL resolve 阶段或首项 `mktemp`/调用准备阶段失败，因此无法证明未来首项前失败不再回到 `detail=none`。请在受控测试接口下分别注入：
+
+- URL/ID 解析失败，精确得到固定 `resolve-upload-url`（或更精确安全类别）且保留原 exit；
+- 首项调用前的临时文件创建失败，精确得到 `asset-CHANGELOG.md-starting`、保留原 exit、无 token/响应内容。
+
+测试注入不得进入生产环境；可通过受控 `TMPDIR` 权限/无效路径触发真实 `mktemp` 失败。继续断言恰一条 annotation、无 workflow command 注入和 cleanup 不改写状态。
+
+修正 B10/B11 后由同一 reviewer 复跑数字/URL identity 正负向、首项前诊断、状态机、shell 与 diff 门禁。最终 PASS 前禁止推送。
+
+## 第六次修正第一次复审
+
+复审结论：**FAIL（B10 尚有一个后续写入边界）**
+
+已关闭部分：
+
+- 初次 discovery/create 后立即进入固定 `validate-release-identity` 阶段；tag 必须匹配，ID 必须是正整数，upload URL 必须精确绑定固定 repository 与同一 ID。字符串、0、负数、小数 ID 及 draft 坏 upload URL 均在 PATCH/delete/upload 前失败，测试中的 Release 状态文件 hash 保持不变。
+- `upload_error` 在 EXIT trap 安装前一次创建；进入 upload 阶段立即设置首项 `starting`，循环内每项 `starting` 后直接进入 `set +e` 的 `gh api`（stderr 重定向会截断同一文件），不再执行 `mktemp`、JSON 解析或文件删除。CLI/重定向失败均已有固定资产 detail；错误 token与七类注入继续证明不会出现 `detail=none` 且保留原 exit。
+- 完整状态机、`bash -n`、`git diff --check` 均 PASS。
+
+### R13-B12：重新 discovery 后、公开 PATCH 前没有复用正整数 identity 校验
+
+八项上传完成后脚本执行：
+
+```bash
+load_release
+validate_metadata
+...
+release_id="$(jq -er .id "$release_json")"
+gh api --method PATCH "repos/$repo/releases/$release_id" ...
+```
+
+这里的 `validate_metadata` 虽检查 tag 和 upload URL 文本，但仍以 `jq -er .id` 读取 ID，不要求其为正整数。初次 identity 校验不能证明重新查询结果仍是同一规范 Release；随后该 ID 被用于第二个远端写操作（公开 PATCH）。这不满足“任何写操作前”的 B10 边界。
+
+请让 `validate_metadata` 复用 `validate_release_identity`，或在每次 `load_release` 后、任何后续写操作前显式调用同一校验；还应要求重新 discovery 的 ID 与本轮最初固定 `release_id` 相同，而不只是它各自与返回的 upload URL 自洽。新增 mock 在上传完成后的第二次 view 返回不同/字符串 ID 的负例，断言不执行 publish PATCH、Release 保持 draft。公开后最终只读复验也应继续执行 identity 校验，以证明最终对象未切换。
+
+修正 R13-B12 后复跑定向身份切换负例和完整状态机；最终 PASS 前仍禁止推送。
+
+## 第六次最小修正最终复审
+
+复审结论：**PASS（允许推送该最小修正）**
+
+B10–B12 已全部关闭：
+
+- `validate_release_identity [expected_id]` 要求固定 tag、正整数 database ID、精确 uploads host/repository/同 ID/template；首次 discovery 后在任何 draft PATCH/delete/upload 前执行。
+- 八项上传后的 `validate-uploaded-release` 会重新 discovery，并要求新 ID 与本轮初始 ID 完全相同；只有通过 identity、metadata、draft 状态、八附件和远端内容复验后才允许 publish PATCH。
+- publish PATCH 后的 `validate-public-release` 再次 discovery，并以同一 expected ID 做正整数、tag 和 upload URL 复验；最终 metadata、`draft=false`、八资产及远端下载候选验证仍继续执行。
+- mock 可在第二次 view 返回不同数字 ID 或字符串 ID；两例均在上传后失败、保持 `draft=true` 和八项附件，没有执行公开 PATCH。关闭注入后重试会清空重建，并最终得到 `draft=false`、八个唯一附件，证明身份切换不会被误发布且仍可安全恢复。
+- 初次 draft 对字符串、0、负数、小数 ID 及坏 upload URL 的状态 hash 不变证据继续通过。
+
+B11 通过消除可失败点而关闭：upload stderr 文件在 trap 安装前一次创建；upload 阶段立即设置固定首项 `starting`，每项循环在 `starting` 后直接进入包含 stderr 重定向的 CLI 调用，不再有 JSON 读取、`mktemp` 或删除命令。错误 token和七类别测试实际证明调用失败会从 `starting` 转为固定类别、保留原 exit且不会泄露 stderr；因此先前 `detail=none` 路径已从 upload 阶段移除。
+
+最终复跑：完整发布状态机及所有身份/分类/部分重试测试 PASS；相关 shell `bash -n` PASS；`git diff --check` PASS。AI log 保持准确的 run `29177621742`、首项前失败边界和未完成状态。审核没有执行远端写操作。
+
+允许推送并等待准确 main run。只有完整质量链、candidate、recovery、公开 Release 和真实八附件下载复验全部成功后，才可删除一次性 recovery job并进入最终发布证据复审。
+
 ## 官方 GitHub CLI 上传恢复修正审核
 
 审核结论：**PASS（允许推送以 `gh release upload` 替代 curl 的恢复修正）**
