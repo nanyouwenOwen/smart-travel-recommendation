@@ -256,6 +256,57 @@ B5–B7 已关闭：
 
 授权边界：只允许这一次审计记录触发的完整重验；不得手工重跑单个 recovery、不得使用历史 candidate 替代当前质量门禁、不得调高 k6 阈值或修改产品以掩盖波动。若新 run 再次在同一 performance stage 失败，应停止用文档提交反复重试，转入独立诊断轮次并保留原阈值，查明资源噪声或真实性能退化后再决定。
 
+## 第四次上传诊断修正审核
+
+审核结论：**FAIL（禁止推送当前逐项上传诊断修正）**
+
+### 远端边界
+
+实施终端提供的准确 run `29177210816` 证据显示：六个质量 job、`release-candidate`、recovery 的固定身份/source artifact/候选复验均成功；pending-tag draft 已被 discovery 找到，失败再次局限在 `upload-assets` 且原退出码为 1。公开 tag 页面仅有 GitHub 自动源码归档，没有固定八附件，不能当作公开 Release 完成。该事实证明本次诊断修正针对真实上传失败，不涉及放宽任何质量门禁。
+
+### 已通过的实现审查
+
+- 八项固定白名单改为逐项 `gh release upload`，消除 CLI 内部五并发变量；tag、repository、短期 `GH_TOKEN` 和资产路径边界未扩大。
+- 每项上传只把 stderr 写入私有临时文件；原始响应、header、token 和附件内容均不回显。失败类别只能落入固定 `HTTP-401/403/404/422`、`already-exists`、`release-not-found`、`unknown` 枚举；annotation 的资产名只来自固定八项列表，因此不存在 workflow command 注入来源。
+- `set +e` 只包围单次 CLI 调用，紧接着捕获 `$?` 并恢复 `set -e`；失败以捕获的原状态退出，EXIT trap 再输出固定字段并保持该状态。正常路径逐项删除错误临时文件，异常路径也由 EXIT cleanup 删除当前文件。
+- draft 重试逻辑仍先认证枚举并删除所有现有附件，再从固定第一项开始上传。若中途失败，draft 不公开；下次运行重新清空部分附件，因此逻辑上可安全幂等恢复。上传完仍要求恰好八项、远端逐项下载候选验证，随后才公开并再次复验。
+
+### R13-B8：新增分类诊断只有 `unknown` 测试，不能证明固定类别映射
+
+当前错误 token 测试中的 mock 通过 shell 条件静默返回 1，没有输出 401/403/404/422、already exists 或 release not found 文本，因此只验证 `asset-CHANGELOG.md-unknown`。本次变更的核心交付是下一次真实失败能给出可靠而安全的固定分类；其余六类从未被执行验证，类别优先级和大小写匹配也没有证据。
+
+请让 mock 可注入固定 stderr 与自定义非零状态，表驱动覆盖六个已知类别和 unknown。每例必须断言：恰一条 annotation、精确固定 asset/category、annotation 中 exit 等于 mock 原状态、原始响应及 token 不出现、本地模式无 annotation。还应加入包含 `%`、换行或 `::` 的恶意响应，证明输出仍只包含固定类别且没有 workflow command 注入。
+
+### R13-B9：缺少中途部分上传失败后的真实重试测试
+
+现有 draft recovery 测试只从预置 stale/extra 附件直接成功；错误 token 总在第一项 `CHANGELOG.md` 失败。没有证明第二至第七项失败后已上传的部分集合保持 draft、未执行 publish，并能在下一次调用先清空后完整重建八项。
+
+请为 mock 增加“第 N 项上传后失败”的一次性注入（使用固定中间项），验证首次调用：原 exit/固定中间资产 annotation 正确、Release 仍 draft、没有公开、只留下预期部分附件；关闭注入后再次运行，验证旧部分被删除、八项无重复无额外、远端内容验证通过并最终公开。该测试同时应检查失败和成功后没有遗留脚本创建的 upload stderr 临时文件；可以给脚本使用受测临时目录或记录创建路径，不能依赖模糊的全局 `/tmp` 数量。
+
+### 当前门禁证据
+
+- 相关 shell `bash -n`：PASS。
+- 现有发布状态机测试：PASS，但只覆盖 `unknown` 首项失败，不能关闭 B8/B9。
+- `git diff --check`：PASS。
+- 本次只读 tag fetch 仍证明 `v0.1.0` 为 annotated tag且 peeled commit 未变。公共 API 查询因匿名速率限制返回 403，本 reviewer 不据此声称当前公开 Release 状态；采用实施方已记录的 tag 页面事实，且审核未执行任何远端写操作。
+
+实施终端修正 B8/B9 后由同一 reviewer 复跑分类、注入安全、中途失败/重试、临时文件清理、状态机及静态门禁。最终 PASS 前禁止推送。
+
+## 第四次上传诊断修正最终复审
+
+复审结论：**PASS（允许推送逐项上传诊断修正）**
+
+B8/B9 已关闭：
+
+- mock 可按固定附件注入 stderr 与任意固定非零状态。表驱动测试逐项执行 `HTTP-401`、`HTTP-403`、`HTTP-404`、`HTTP-422`、`already-exists`、`release-not-found` 和 `unknown`，每例均保留原 exit 23、只产生一条 annotation，并精确映射到固定 `asset-CHANGELOG.md-<category>`。
+- unknown 用例注入包含 `::error::` 和伪 token 的恶意响应；最终输出不含该响应或 token，只含脚本生成的固定 annotation。这与静态审查共同证明原始 stderr 不进入日志，资产名和类别均无外部 workflow-command 注入来源。
+- 中间第六项 `frontend-sbom.cdx.json` 注入 exit 29 后，Release 仍为 draft且只保留前五项已上传附件，没有进入 publish；受控 `TMPDIR` 为空，证明 release/view/upload error 与 remote 临时文件均由 EXIT cleanup 清理。
+- 关闭注入后的同脚本重试先按 draft discovery 删除前五项，再完整上传，最终状态为 `draft=false`，资产恰八项且八个唯一名称。该用例实际证明部分上传后的清理、无重复重建、验证和公开状态机可恢复。
+
+最终门禁：相关 shell `bash -n` PASS；完整发布状态机与新增分类/注入/重试测试 PASS；`git diff --check` PASS。生产逻辑仍保持单次 `set +e` 捕获、立即恢复 `set -e`、原状态退出、固定分类/附件 annotation 和原始响应不回显；没有扩大权限、tag/repository/artifact 或候选边界。
+
+允许推送本修正并等待准确 main run。只有完整质量链、candidate、recovery 和真实远端八附件复验全部成功后，才可删除一次性 recovery job并进入最终 MVP 发布证据复审。
+
 ## 官方 GitHub CLI 上传恢复修正审核
 
 审核结论：**PASS（允许推送以 `gh release upload` 替代 curl 的恢复修正）**

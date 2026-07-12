@@ -28,12 +28,16 @@ release_json="$(mktemp)"
 release_error="$(mktemp)"
 remote_dir="$(mktemp -d)"
 publish_stage="startup"
+publish_detail="none"
+upload_error=""
 cleanup() {
   status=$?; trap - EXIT
   if ((status != 0)) && [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
-    printf '::error title=GitHub Release failed::stage=%s; exit=%s\n' "$publish_stage" "$status" >&2
+    printf '::error title=GitHub Release failed::stage=%s; detail=%s; exit=%s\n' \
+      "$publish_stage" "$publish_detail" "$status" >&2
   fi
   rm -f "$release_json" "$release_error" || true
+  [[ -z "$upload_error" ]] || rm -f "$upload_error" || true
   rm -rf "$remote_dir" || true
   exit "$status"
 }
@@ -121,9 +125,28 @@ if [[ "$draft" == true ]]; then
     gh api --method DELETE "repos/$repo/releases/assets/$asset_id"
   done < <(jq -r '.assets[].id' "$release_json")
   publish_stage="upload-assets"
-  upload_paths=()
-  for name in "${assets[@]}"; do upload_paths+=("$asset_dir/$name"); done
-  gh release upload "$tag" "${upload_paths[@]}" --repo "$repo"
+  for name in "${assets[@]}"; do
+    upload_error="$(mktemp)"
+    set +e
+    gh release upload "$tag" "$asset_dir/$name" --repo "$repo" 2>"$upload_error"
+    upload_status=$?
+    set -e
+    if ((upload_status != 0)); then
+      upload_reason=unknown
+      for reason in HTTP-401 HTTP-403 HTTP-404 HTTP-422 already-exists release-not-found; do
+        case "$reason" in
+          HTTP-*) pattern="${reason/-/ }" ;;
+          already-exists) pattern='already exists' ;;
+          release-not-found) pattern='release not found' ;;
+        esac
+        if grep -Fqi "$pattern" "$upload_error"; then upload_reason="$reason"; break; fi
+      done
+      rm -f "$upload_error"
+      publish_detail="asset-$name-$upload_reason"
+      exit "$upload_status"
+    fi
+    rm -f "$upload_error"
+  done
   load_release
   validate_metadata
   [[ "$(jq -r .draft "$release_json")" == true ]]

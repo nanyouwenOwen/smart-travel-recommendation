@@ -42,6 +42,10 @@ if [[ "$1" == release && "$2" == upload ]]; then
   release_id="$(jq -er --arg tag "$tag" '.[] | select(.tag_name == $tag and .draft == true) | .id' "$state")"
   for input in "${files[@]}"; do
     [[ -f "$input" && -s "$input" ]]; name="$(basename "$input")"; id="$(cat "$MOCK_STATE/next-id")"
+    if [[ "$name" == "${MOCK_UPLOAD_FAIL_NAME:-}" ]]; then
+      printf '%s\n' "${MOCK_UPLOAD_ERROR:-mock upload failure}" >&2
+      exit "${MOCK_UPLOAD_STATUS:-1}"
+    fi
     echo $((id + 1)) >"$MOCK_STATE/next-id"; cp "$input" "$MOCK_STATE/assets/$id"; size="$(stat -c %s "$input")"
     jq --argjson release_id "$release_id" --argjson id "$id" --arg name "$name" --argjson size "$size" \
       'map(if .id == $release_id then .assets += [{id:$id,name:$name,size:$size}] else . end)' \
@@ -187,7 +191,7 @@ set +e; run_publish_with wrong-token true >"$annotation_output" 2>&1; annotation
 [[ "$annotation_status" != 0 ]]
 annotation="$(cat "$annotation_output")"
 [[ "$(grep -c '^::error title=GitHub Release failed::' "$annotation_output")" == 1 ]]
-[[ "$annotation" == *"stage=upload-assets; exit=$annotation_status"* ]]
+[[ "$annotation" == *"stage=upload-assets; detail=asset-CHANGELOG.md-unknown; exit=$annotation_status"* ]]
 for forbidden in wrong-token 'Authorization:' 'application/octet-stream' changelog; do
   [[ "$annotation" != *"$forbidden"* ]] || { echo "annotation leaked $forbidden" >&2; exit 1; }
 done
@@ -199,6 +203,47 @@ set +e; run_publish_with wrong-token false >"$local_output" 2>&1; local_status=$
 [[ "$local_status" == "$annotation_status" ]]
 ! grep -q '::error' "$local_output"
 echo 'upload auth failure local mode: PASS'
+
+for category_case in HTTP-401 HTTP-403 HTTP-404 HTTP-422 already-exists release-not-found unknown; do
+  seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
+  case "$category_case" in
+    HTTP-*) upload_error="${category_case/-/ } response" ;;
+    already-exists) upload_error='asset already exists' ;;
+    release-not-found) upload_error='release not found' ;;
+    unknown) upload_error='::error::opaque failure token=must-not-leak' ;;
+  esac
+  category_output="$tmp/category-$category_case.txt"
+  set +e
+  PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" GH_TOKEN=mock-token GITHUB_ACTIONS=true \
+    MOCK_UPLOAD_FAIL_NAME=CHANGELOG.md MOCK_UPLOAD_ERROR="$upload_error" MOCK_UPLOAD_STATUS=23 \
+    scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes" \
+    >"$category_output" 2>&1
+  category_status=$?
+  set -e
+  [[ "$category_status" == 23 ]]
+  [[ "$(grep -c '^::error title=GitHub Release failed::' "$category_output")" == 1 ]]
+  [[ "$(<"$category_output")" == *"detail=asset-CHANGELOG.md-$category_case; exit=23"* ]]
+  [[ "$(<"$category_output")" != *'must-not-leak'* ]]
+done
+echo 'upload failure categories and stderr redaction: PASS'
+
+seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
+leak_tmp="$tmp/leakcheck"; mkdir -p "$leak_tmp"
+set +e
+TMPDIR="$leak_tmp" PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" GH_TOKEN=mock-token GITHUB_ACTIONS=false \
+  MOCK_UPLOAD_FAIL_NAME=frontend-sbom.cdx.json MOCK_UPLOAD_ERROR='HTTP 422 partial upload' MOCK_UPLOAD_STATUS=29 \
+  scripts/publish-github-release.sh owner/repo v0.1.0 "$sha" "$assets" "$notes" >/dev/null 2>&1
+partial_status=$?
+set -e
+[[ "$partial_status" == 29 ]]
+[[ "$(jq '.[0].assets | length' "$tmp/state/releases.json")" == 5 ]]
+[[ "$(jq -r '.[0].draft' "$tmp/state/releases.json")" == true ]]
+[[ -z "$(find "$leak_tmp" -mindepth 1 -print -quit)" ]]
+run_publish >/dev/null
+[[ "$(jq '.[0].assets | length' "$tmp/state/releases.json")" == 8 ]]
+[[ "$(jq -r '.[0].assets | map(.name) | unique | length' "$tmp/state/releases.json")" == 8 ]]
+[[ "$(jq -r '.[0].draft' "$tmp/state/releases.json")" == false ]]
+echo 'partial upload retry and temporary cleanup: PASS'
 
 seed_state true 'Smart Travel Assistant v0.1.0' "$(cat "$notes")" none
 expect_failure 'upload wrong repository' env PATH="$tmp/bin:$PATH" MOCK_STATE="$tmp/state" MOCK_EXPECT_TOKEN=mock-token \
