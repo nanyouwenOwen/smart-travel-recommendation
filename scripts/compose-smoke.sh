@@ -3,12 +3,14 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
+source "$root/scripts/lib/smoke-diagnostics.sh"
 project="travel-smoke-${RANDOM}"
 port="${FRONTEND_PORT:-5173}"
 base="http://127.0.0.1:$port"
 backup="$(mktemp --suffix=.sql.gz)"
 response="$(mktemp)"
 last_observation="not started"
+current_stage="startup"
 
 log() { printf '[%s] %s\n' "$(date -u +%FT%TZ)" "$*"; }
 fail() { log "ERROR: $*" >&2; return 1; }
@@ -28,9 +30,12 @@ diagnostics() {
 cleanup() {
   local status=$?
   trap - EXIT INT TERM
-  if (( status != 0 )); then diagnostics; fi
-  rm -f "$backup" "$response"
-  docker compose -p "$project" down -v --remove-orphans >/dev/null 2>&1 || true
+  if (( status != 0 )); then
+    smoke_best_effort smoke_failure_summary "$status" "$current_stage" "$last_observation"
+    smoke_best_effort diagnostics
+  fi
+  smoke_best_effort rm -f "$backup" "$response"
+  smoke_best_effort docker compose -p "$project" down -v --remove-orphans >/dev/null 2>&1
   exit "$status"
 }
 trap cleanup EXIT
@@ -100,6 +105,8 @@ wait_for_login() {
   fail "Database-backed login did not recover: $last_observation"
 }
 
+current_stage="1/10 build and health"
+last_observation="starting Compose services"
 log "Stage 1/10: build, start, and wait for healthy services"
 docker compose -p "$project" up --build -d
 wait_for_services
@@ -108,6 +115,8 @@ for service in mysql backend frontend; do
 done
 log "Stage 1/10 passed"
 
+current_stage="2/10 proxy and non-root"
+last_observation="checking proxy health and container users"
 log "Stage 2/10: proxy health and non-root containers"
 curl -fsS --connect-timeout 3 --max-time 10 "$base/healthz" >/dev/null
 curl -fsS --connect-timeout 3 --max-time 10 "$base/api/v1/health" >/dev/null
@@ -115,6 +124,8 @@ curl -fsS --connect-timeout 3 --max-time 10 "$base/api/v1/health" >/dev/null
 [[ "$(docker inspect -f '{{.Config.User}}' "${project}-frontend-1")" != root ]] || fail "frontend runs as root"
 log "Stage 2/10 passed"
 
+current_stage="3/10 trip generation"
+last_observation="registering smoke user"
 log "Stage 3/10: registration, location, and trip generation"
 email="compose-${project}@example.com"
 password='secure-pass-123'
@@ -130,6 +141,8 @@ trip="$(curl -fsS --connect-timeout 3 --max-time 15 -H "$header" -H 'Content-Typ
 wait_for_trip || fail "Trip generation failed: $last_observation"
 log "Stage 3/10 passed"
 
+current_stage="4/10 consultation SSE"
+last_observation="creating consultation and waiting for done event"
 log "Stage 4/10: consultation SSE terminal event"
 conversation="$(curl -fsS --connect-timeout 3 --max-time 15 -H "$header" -H 'Content-Type: application/json' \
   -d "{\"title\":\"Smoke\",\"tripId\":\"$trip\"}" "$base/api/v1/conversations" | jq -er '.data.id | select(length > 0)')"
@@ -137,6 +150,8 @@ curl -fsSN --connect-timeout 3 --max-time 30 -H "$header" -H 'Content-Type: appl
   -d '{"content":"天气如何？"}' "$base/api/v1/conversations/$conversation/messages:stream" | grep -Eq 'event: ?done'
 log "Stage 4/10 passed"
 
+current_stage="5/10 backup and restore"
+last_observation="dumping and restoring into a new database"
 log "Stage 5/10: backup and restore into a new database"
 docker compose -p "$project" exec -T mysql sh -c 'exec mysqldump --single-transaction -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' | gzip >"$backup"
 gzip -t "$backup"
@@ -146,25 +161,35 @@ docker compose -p "$project" exec -T mysql sh -c "mysql -N -uroot -p\"\$MYSQL_RO
   | awk 'NR==1{if($1!=1)exit 1} NR==2{if($1<1)exit 1} NR==3{if($1<1)exit 1}'
 log "Stage 5/10 passed"
 
+current_stage="6/10 performance precondition"
+last_observation="checking API health before performance test"
 log "Stage 6/10: performance precondition"
 curl -fsS --connect-timeout 3 --max-time 10 "$base/api/v1/health" >/dev/null || fail "Performance precondition health failed"
 log "Stage 6/10 passed"
 
+current_stage="7/10 performance thresholds"
+last_observation="running k6 thresholds"
 log "Stage 7/10: k6 performance thresholds"
 if ! BASE_URL="$base" scripts/perf.sh; then fail "Performance stage failed"; fi
 log "Stage 7/10 passed"
 
+current_stage="8/10 backend recovery"
+last_observation="restarting backend"
 log "Stage 8/10: backend restart recovery"
 docker compose -p "$project" restart backend >/dev/null
 wait_for_health
 log "Stage 8/10 passed"
 
+current_stage="9/10 MySQL restart"
+last_observation="stopping and starting MySQL"
 log "Stage 9/10: MySQL stop/start"
 docker compose -p "$project" stop mysql >/dev/null
 sleep 2
 docker compose -p "$project" start mysql >/dev/null
 log "Stage 9/10 passed"
 
+current_stage="10/10 database login recovery"
+last_observation="waiting for database-backed login"
 log "Stage 10/10: database-backed login recovery"
 wait_for_login
 log "Stage 10/10 passed"

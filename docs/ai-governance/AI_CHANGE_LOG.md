@@ -35,3 +35,9 @@
 - 用户决定：明确授权创建并推送 annotated tag `v0.1.0`，创建 GitHub Release 并附加候选产物。
 - 认证边界：本地终端有 Git SSH 推送权限，但无 GitHub API token 且未安装 `gh`；不索取长期 token，而是使用精确 tag 触发的 Actions release job 及仅该 job 具有的短期 `contents: write` `GITHUB_TOKEN`。
 - 原子性：tag run 重跑全部质量链并使用同 run artifact；只接受 annotated `v0.1.0` 且目标必须为 `origin/main` 可达提交。Release 先作为 draft 组装，八个固定附件远端下载并重做 SHA/校验和/SBOM/归档校验后才公开。在实际远端核验前 `TODO.md` 不勾选。
+
+## 2026-07-12 - 发布前 Compose smoke 失败可观测性
+
+- 触发：发布机制提交 `7fd4abc` 的 main CI run `29175449348` 中 `container-smoke` 以 1 退出，候选/发布 job 跳过；公开页面只显示通用退出码，不能定位阶段，因此未创建 tag。
+- 实施：不猜测根因也不放宽任何断言、轮询、超时或性能阈值；为十个阶段维护固定安全名称，非零 EXIT 时发出经转义的单条 GitHub error annotation，包含阶段、最后脱敏观测和原退出码，然后保持原有有界诊断与清理。
+- 定向证据：新增测试覆盖显式/直接/管道失败、自定义退出码、INT 130、TERM 143、GitHub/本地输出、workflow-command 注入转义及成功静默路径；对摘要、诊断和资源清理三个边界分别注入真实非零返回，均确认仍保留原始退出码 37。本轮准确 main CI 尚待推送后验证。
